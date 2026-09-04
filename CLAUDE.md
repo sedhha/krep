@@ -118,7 +118,7 @@ Changes should have the appropriate combination of:
 - architecture and invariant tests
 - end-to-end tests
 
-Tests are evidence of correctness, not the definition of correctness.
+Tests are evidence of correctness, not the definition of correctness. When writing tests - ask user what behavior is supposed to be expected. Feel free to give suggestions.
 
 Never:
 

@@ -7,7 +7,10 @@ authors = [
     { name = "sedhha", email = "activity.schoolsh2@gmail.com" }
 ]
 requires-python = ">=3.13"
-dependencies = []
+dependencies = [
+    "langchain>=1.4.0",
+    "langgraph>=1.2.11",
+]
 
 [project.scripts]
 krep = "krep:main"
