@@ -7,9 +7,10 @@ any task, check which rows your diff touches and update that doc — see
 | Doc | Owns | Update when |
 | --- | ---- | ----------- |
 | [`README.md`](../README.md) | Project one-liner, doc links, `make` quick reference, the "how to start work" procedure | A `make` target is added/renamed, the doc set changes, or the level-picking procedure changes |
-| [`CLAUDE.md`](../CLAUDE.md) | Canonical repo-wide instruction source for coding agents (points elsewhere, restates nothing) | The doc map above it changes, or a new non-negotiable is added |
+| [`CLAUDE.md`](../CLAUDE.md) | Canonical repo-wide instruction source for coding agents (points elsewhere, restates nothing); agent reply style and shorthand honouring | The doc map above it changes, a new non-negotiable is added, or the reply-style contract changes |
 | [`AGENTS.md`](../AGENTS.md) | Pointer for Codex to `CLAUDE.md` / `docs/WORKFLOW.md` | Only if the pointer target changes |
 | [`docs/WORKFLOW.md`](WORKFLOW.md) | The development process: escalation levels, verify gates, doc-sync rule | The escalation levels, verify gates, or doc-sync rule change |
+| [`docs/spec_driven_development/README.md`](spec_driven_development/README.md) | How a human drives an agent through the workflow: shorthand vocabulary, lifecycle practice, context-clearing and handoff rules, token efficiency, anti-patterns | The shorthand changes, or a collaboration practice is added/retired |
 | [`docs/product/agent-platform-v1.md`](product/agent-platform-v1.md) | Product goal, scope, what we're building and why | Product scope or goals change |
 | [`docs/architecture/overview.md`](architecture/overview.md) | Runtime mental model, package layout, the layer graph diagram, cross-cutting conventions (Pydantic boundary, mypy strict) | A package is added/renamed/moved, the layer graph changes (readable summary of `tests/architecture/test_layers.py`, which is authoritative), or a repo-wide convention changes |
 | [`docs/adr/README.md`](adr/README.md) | Index/purpose statement for the ADR log | The ADR process itself changes |
