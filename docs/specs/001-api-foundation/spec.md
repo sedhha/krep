@@ -64,6 +64,7 @@ a laptop.
 | 6 | An unhandled exception returns the same documented error model and leaks no traceback or internal detail. | Integration test |
 | 7 | Every request and response body is a Pydantic model; no `dict` crosses the API boundary. | Architecture or contract test |
 | 8 | The service starts from a documented single command, and `.env.example` lists every variable it reads. | Manual run |
+| 9 | A request to an unmatched route (404) or a matched route with the wrong method (405) returns the same documented error model as criterion 6, not a framework-default body. | Integration test |
 
 ## Constraints
 
