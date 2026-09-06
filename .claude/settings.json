@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"systemMessage\": \"Docs synced? Check docs/MAP.md for docs your diff should update (see docs/WORKFLOW.md#keeping-docs-in-sync).\"}'"
+          }
+        ]
+      }
+    ]
+  }
+}

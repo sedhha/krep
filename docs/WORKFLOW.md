@@ -100,6 +100,20 @@ Architectural rules live in code, not prose. If a rule matters, it belongs in
 `tests/architecture/` or a lint rule — a rule stated only in Markdown will
 eventually be ignored by a human or an agent under time pressure.
 
+## Keeping Docs in Sync
+
+Before any task at any level is described as complete, check
+[`docs/MAP.md`](MAP.md) for the doc(s) whose facts your diff invalidated, and
+update them in the same unit of work. This applies whether the task is a
+Level 0 tweak or a Level 3 system change — a stale doc is a bug in the same
+sense as a failing test. Do not restate a fact across two docs; update the one
+that owns it and link from the other.
+
+This is a review-time check, not an automated rewrite: a session-end reminder
+hook points here, but deciding *which* doc changed and *how* to phrase the
+update stays a human/agent judgment call, same as everything else in this
+file.
+
 ## Where Truth Lives
 
 | Question | Source of truth |
