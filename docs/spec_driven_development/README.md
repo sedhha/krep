@@ -333,6 +333,11 @@ type it on a design you haven't read.
 The agent turns spec+design into `plan.md`: ordered slices, each with its own
 verify command, each standing alone as a commit.
 
+You don't choose the slice count — the agent derives it from the design, under
+one rule: each slice must pass `make verify` on its own. Four to six is typical
+for a capability; two suggests slices too big to review, ten suggests they're
+fragments of one change.
+
 Read it and check one thing: **can slice 1 land and be verified without slice
 2?** If slices depend on each other to be testable, they're not slices — send it
 back:
@@ -381,6 +386,10 @@ Then you read the diff and ship.
 ---
 
 ## Shorthand
+
+These are typed **in the chat window, as your whole message** — they are not CLI
+commands or slash commands. They work because `CLAUDE.md` binds the agent to
+them. `accept` on its own line does exactly one thing: flips `design.md` Status.
 
 | You type | Agent does |
 | -------- | ---------- |

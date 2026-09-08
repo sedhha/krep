@@ -2,7 +2,7 @@
 
 | Field | Value |
 | ----- | ----- |
-| Status | `Draft` |
+| Status | `Accepted` |
 | Author | sedhha |
 | Created | 2026-09-06 |
 | Spec | [spec.md](spec.md) |
