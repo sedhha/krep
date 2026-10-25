@@ -174,7 +174,7 @@ def sha256(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
-async def _put_file(
+async def put_file(
     conn: AsyncConnection, content: bytes = ZIP, tenant: str = TENANT
 ) -> str:
     await conn.execute("SELECT set_config('app.tenant_id', %s, true)", (tenant,))
@@ -188,7 +188,7 @@ async def _put_file(
     return digest
 
 
-async def _skill_version(
+async def skill_version(
     conn: AsyncConnection, slug: str = "my-skill"
 ) -> tuple[uuid.UUID, uuid.UUID]:
     await scope_tenant(conn)
@@ -207,7 +207,7 @@ async def _skill_version(
     return registry_id, row[0]
 
 
-async def _insert_skill(
+async def insert_skill(
     conn: AsyncConnection, ids: tuple[uuid.UUID, uuid.UUID], digest: str
 ) -> None:
     registry_id, version_id = ids
@@ -249,21 +249,21 @@ async def test_skills_reference_an_archive_by_hash_not_instructions(
 
 async def test_skill_with_archive_is_accepted(owner_conn: AsyncConnection):
     await scope_tenant(owner_conn)
-    ids = await _skill_version(owner_conn)
-    await _insert_skill(owner_conn, ids, await _put_file(owner_conn))
+    ids = await skill_version(owner_conn)
+    await insert_skill(owner_conn, ids, await put_file(owner_conn))
 
 
 async def test_skill_must_reference_an_existing_archive(owner_conn: AsyncConnection):
-    ids = await _skill_version(owner_conn)
+    ids = await skill_version(owner_conn)
     with pytest.raises(psycopg.errors.ForeignKeyViolation):
-        await _insert_skill(owner_conn, ids, sha256(b"never uploaded"))
+        await insert_skill(owner_conn, ids, sha256(b"never uploaded"))
 
 
 async def test_identical_archives_in_a_tenant_share_one_file(owner_conn: AsyncConnection):
-    digest = await _put_file(owner_conn)
-    await _insert_skill(owner_conn, await _skill_version(owner_conn, "skill-a"), digest)
-    await _insert_skill(owner_conn, await _skill_version(owner_conn, "skill-b"), digest)
-    await _put_file(owner_conn)
+    digest = await put_file(owner_conn)
+    await insert_skill(owner_conn, await skill_version(owner_conn, "skill-a"), digest)
+    await insert_skill(owner_conn, await skill_version(owner_conn, "skill-b"), digest)
+    await put_file(owner_conn)
     assert await _count(owner_conn, "skills") == 2
     assert await _count(owner_conn, "skill_files") == 1
 
@@ -272,18 +272,20 @@ async def test_identical_archives_in_different_tenants_are_stored_separately(
     owner_conn: AsyncConnection,
 ):
     await scope_tenant(owner_conn)
-    await _put_file(owner_conn, tenant=TENANT)
-    await _put_file(owner_conn, tenant=OTHER_TENANT)
-    cur = await owner_conn.execute(
-        "SELECT count(*) FROM skill_files WHERE content_sha256 = %s", (sha256(ZIP),)
-    )
-    row = await cur.fetchone()
-    assert row is not None and row[0] == 2
+    await put_file(owner_conn, tenant=TENANT)
+    await put_file(owner_conn, tenant=OTHER_TENANT)
+    for tenant in (TENANT, OTHER_TENANT):
+        await owner_conn.execute("SELECT set_config('app.tenant_id', %s, true)", (tenant,))
+        cur = await owner_conn.execute(
+            "SELECT count(*) FROM skill_files WHERE content_sha256 = %s", (sha256(ZIP),)
+        )
+        row = await cur.fetchone()
+        assert row is not None and row[0] == 1
 
 
 async def test_referenced_archive_cannot_be_deleted(owner_conn: AsyncConnection):
-    digest = await _put_file(owner_conn)
-    await _insert_skill(owner_conn, await _skill_version(owner_conn), digest)
+    digest = await put_file(owner_conn)
+    await insert_skill(owner_conn, await skill_version(owner_conn), digest)
     with pytest.raises(psycopg.errors.ForeignKeyViolation):
         await owner_conn.execute(
             "DELETE FROM skill_files WHERE tenant_id = %s AND content_sha256 = %s",
@@ -294,9 +296,9 @@ async def test_referenced_archive_cannot_be_deleted(owner_conn: AsyncConnection)
 async def test_archive_is_deletable_once_no_skill_references_it(
     owner_conn: AsyncConnection,
 ):
-    digest = await _put_file(owner_conn)
-    ids = await _skill_version(owner_conn)
-    await _insert_skill(owner_conn, ids, digest)
+    digest = await put_file(owner_conn)
+    ids = await skill_version(owner_conn)
+    await insert_skill(owner_conn, ids, digest)
     await owner_conn.execute("DELETE FROM registry_versions WHERE id = %s", (ids[1],))
     cur = await owner_conn.execute(
         "DELETE FROM skill_files WHERE tenant_id = %s AND content_sha256 = %s",
@@ -306,10 +308,10 @@ async def test_archive_is_deletable_once_no_skill_references_it(
 
 
 async def test_orphan_cleanup_keeps_archives_still_referenced(owner_conn: AsyncConnection):
-    digest = await _put_file(owner_conn)
-    first = await _skill_version(owner_conn, "skill-a")
-    await _insert_skill(owner_conn, first, digest)
-    await _insert_skill(owner_conn, await _skill_version(owner_conn, "skill-b"), digest)
+    digest = await put_file(owner_conn)
+    first = await skill_version(owner_conn, "skill-a")
+    await insert_skill(owner_conn, first, digest)
+    await insert_skill(owner_conn, await skill_version(owner_conn, "skill-b"), digest)
     await owner_conn.execute("DELETE FROM registry_versions WHERE id = %s", (first[1],))
     cur = await owner_conn.execute(
         "DELETE FROM skill_files f WHERE f.tenant_id = %s AND NOT EXISTS ("

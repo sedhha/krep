@@ -28,8 +28,7 @@ def alembic(database: str, *args: str) -> None:
     subprocess.run(["uv", "run", "alembic", *args], cwd=ROOT, env=env, check=True)
 
 
-@pytest.fixture(scope="session")
-def migrated_db() -> Iterator[str]:
+def create_database() -> str:
     name = f"krep_test_{uuid.uuid4().hex[:8]}"
     with psycopg.connect(SUPERUSER_URL, autocommit=True) as conn:
         conn.execute(
@@ -42,12 +41,29 @@ def migrated_db() -> Iterator[str]:
         conn.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
         conn.execute("ALTER SCHEMA public OWNER TO krep_owner")
         conn.execute("GRANT USAGE ON SCHEMA public TO krep_app")
-    alembic(name, "upgrade", "head")
-    yield name
+    return name
+
+
+def drop_database(name: str) -> None:
     with psycopg.connect(SUPERUSER_URL, autocommit=True) as conn:
         conn.execute(
             sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(sql.Identifier(name))
         )
+
+
+@pytest.fixture(scope="session")
+def migrated_db() -> Iterator[str]:
+    name = create_database()
+    alembic(name, "upgrade", "head")
+    yield name
+    drop_database(name)
+
+
+@pytest.fixture
+def scratch_db() -> Iterator[str]:
+    name = create_database()
+    yield name
+    drop_database(name)
 
 
 @pytest_asyncio.fixture
