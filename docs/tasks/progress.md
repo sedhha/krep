@@ -7,7 +7,7 @@ Status: `todo` | `in-progress` | `in-review` | `done` (with commit hash)
 | 01 | [DB foundation: compose, roles, Alembic, schema](T01-db-foundation.md) | done | d278c39 |
 | 02 | [Integrity triggers, RLS, grants, seed](T02-integrity-rls-seed.md) | done | 1c2d622 |
 | 03 | [Policy parser, AST, pretty-printer](T03-policy-parser.md) | done | 91809ad |
-| 04 | [Policy compiler to jsonpath](T04-policy-compiler.md) | todo | |
+| 04 | [Policy compiler to jsonpath](T04-policy-compiler.md) | done | c52031c |
 | 05 | [Policy evaluation, summary, leaf testing](T05-policy-evaluate.md) | todo | |
 | 06 | [App skeleton, config, pool, tenant transaction](T06-app-skeleton.md) | todo | |
 | 07 | [Identity: JWT, API key, principal, caller](T07-identity.md) | todo | |
