@@ -1,0 +1,45 @@
+start: expr
+
+?expr: or_expr
+
+?or_expr: and_expr
+        | and_expr ("||" and_expr)+ -> or_
+
+?and_expr: unary
+         | unary ("&&" unary)+ -> and_
+
+?unary: "!" unary -> not_
+      | "(" expr ")"
+      | comparison
+
+?comparison: path CMPOP literal -> cmp
+           | literal IN path -> member
+           | path IN "[" literal ("," literal)* "]" -> in_list
+           | path "." IDENT "(" STRING ")" -> call
+           | HAS "(" path ")" -> has
+
+path: ROOT -> root_path
+    | path "." IDENT -> dot_segment
+    | path "[" STRING "]" -> key_segment
+
+?literal: STRING -> lit_string
+        | NUMBER -> lit_number
+        | TRUE -> lit_true
+        | FALSE -> lit_false
+        | NULL -> lit_null
+        | VAR "." TENANT_ID -> lit_var
+
+ROOT: /(token|principal)\b/
+IN: /in\b/
+HAS: /has\b/
+TRUE: /true\b/
+FALSE: /false\b/
+NULL: /null\b/
+VAR: /var\b/
+TENANT_ID: /tenant_id\b/
+IDENT: /[A-Za-z_][A-Za-z0-9_]*/
+STRING: /"(?:[^"\\\x00-\x1f]|\\(?:["\\\/bfnrt]|u[0-9a-fA-F]{4}))*"/
+NUMBER: /-?(?:0|[1-9][0-9]*)(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?/
+CMPOP: /==|!=|<=|>=|<|>/
+
+%ignore /\s+/
