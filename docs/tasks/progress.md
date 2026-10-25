@@ -4,7 +4,7 @@ Status: `todo` | `in-progress` | `in-review` | `done` (with commit hash)
 
 | # | Task | Status | Commit |
 | --- | --- | --- | --- |
-| 01 | [DB foundation: compose, roles, Alembic, schema](T01-db-foundation.md) | todo | |
+| 01 | [DB foundation: compose, roles, Alembic, schema](T01-db-foundation.md) | done | d278c39 |
 | 02 | [Integrity triggers, RLS, grants, seed](T02-integrity-rls-seed.md) | todo | |
 | 03 | [Policy parser, AST, pretty-printer](T03-policy-parser.md) | todo | |
 | 04 | [Policy compiler to jsonpath](T04-policy-compiler.md) | todo | |
