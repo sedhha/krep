@@ -1,25 +1,26 @@
-# T17 — Uploads and skill resources
+# T17 — Skill archive upload and download
 
-Spec: 6 (skill resources, limits), 11 (S3), 10 (`POST /uploads`). Acceptance: covers the file-resource part of validators; no numbered acceptance test.
+Contract: [skill-archive.md](skill-archive.md). Replaces the S3 upload design. Acceptance: no numbered test; covers the skill-specific part of validators and endpoints.
 
 ## Files
-- Create: `src/krep/uploads/s3.py`, `src/krep/api/uploads.py`, `tests/uploads/test_uploads.py`
-- Modify: `pyproject.toml` (boto3), `src/krep/config.py` (bucket name, region, KMS key id), `src/krep/registry/specs.py` (file resources must reference a key under the caller's tenant prefix), `.env.example`
+- Create: `src/krep/api/skill_archive.py` (multipart parsing and archive download route helpers), `tests/api/test_skill_archive_endpoints.py`
+- Modify: `src/krep/api/registry.py`, `src/krep/api/versions.py` (route skill create/edit through multipart), `pyproject.toml` (`python-multipart`), `.env.example` (none expected)
 
 ## Consumes
-T07 `require_write`, T10 skill validator.
+T07 `require_write`, T10 `validate_skill_archive`, T11 `create_resource`, T12 `create_draft` / `replace_draft`.
 
 ## Produces
-- `s3.py`: `def presign_put(tenant_id: UUID, filename: str, content_type: str, size: int) -> tuple[str, str]` returning `(upload_url, s3_key)`; key prefix is `<tenant_id>/skills/`; expiry 300 s; SSE-KMS headers signed in; size capped at 10 MB.
-- `POST /v1/uploads` -> `{upload_url, s3_key}`.
+- `async def read_archive_part(request) -> bytes`: reads the multipart `archive` part with a hard 1 MiB + 1 byte cap while streaming, so an oversized body is rejected with `413`/`422` before it is buffered in full.
+- Skill create, draft create and draft replace wired to `validate_skill_archive` and the `skills` + `skill_files` writes in one transaction; archive download route.
 
 ## Steps
-1. Tests with a stubbed boto3 client (no network): key starts with the caller's tenant id, expiry 300, SSE-KMS and content-type signed, > 10 MB rejected (`422`), path traversal or odd filenames sanitised.
-2. Skill validator tests: a `file` resource whose `s3_key` is under another tenant's prefix is rejected with a field error.
-3. Implement; the bucket itself (private, block public access, SSE-KMS) is infrastructure and out of scope here; note the required settings in the README for infra to match.
+1. Tests (real Postgres through the app, in-memory zips): create-with-archive returns the 7.2 shape and stores `content_sha256`/`size_bytes` that match the bytes; stored `skill_files.content` equals the upload; uploading the same zip twice (two skills, same tenant) leaves one `skill_files` row and two `skills` rows, the same zip from another tenant is a separate row; oversized body (> 1 MiB) is rejected without a row written; invalid archive returns the T10 field errors with nothing written; missing `archive` part or JSON `spec` for a skill is `422`; replace-draft is atomic (old archive survives a bad upload); a published version rejects replace with `409 version_immutable`.
+2. Download: returns exact bytes, `application/zip`, `ETag: "<sha256>"`, `Cache-Control: private, no-store`; hidden resource 404 (never 403); another tenant's version id 404 (RLS); an agent version id on the archive route 404.
+3. Hardening: logs for a failing upload contain no archive bytes, entry names or frontmatter values (sentinel test, as in T18); no endpoint is reachable without auth.
+4. Implement.
 
 ## Done when
-Tests pass without AWS credentials.
+Tests pass with no AWS dependency anywhere in the project.
 
 ## Flag
-Bucket creation belongs to Terraform (private, block public access, SSE-KMS); not part of this repo's task.
+Nothing is stored outside Postgres in V1. If skills outgrow the 1 MiB cap later, add an `s3_key` column in a new revision and keep this API contract.

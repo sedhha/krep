@@ -3,7 +3,9 @@ import os
 from alembic import context
 from sqlalchemy import create_engine, pool
 
-target_metadata = None
+from krep.db.models import Base
+
+target_metadata = Base.metadata
 
 
 def run_migrations_online() -> None:

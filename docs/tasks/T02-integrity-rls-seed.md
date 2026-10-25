@@ -16,7 +16,8 @@ T01 fixtures (`migrated_db`, `owner_conn`, `app_conn`).
    - `test_ac14_published_version_and_subtype_rows_immutable` (versions, agents, skills; UPDATE raises `23514`; draft -> published UPDATE succeeds).
    - `test_ac28_downgrade_base_then_upgrade_head`.
    - Seed: `registry_types` has agent/skill, `link_rules` has agent-uses-skill, the six global limits exist.
-2. Implement `0002`, `0003` (`TENANT_TABLES` as spec), `0004`; downgrades per 5.4.
+2. `skill_files` is a tenant table the spec's lists predate: add it to `TENANT_TABLES` in `0003` (RLS + grants). It is content-addressed with no version column, so it does not use `reject_published_update`: give it a separate trigger in `0002` that rejects every `UPDATE` (rows are only inserted or deleted). Extend the RLS tests to cover it, add `test_skill_files_rows_are_never_updated`, and keep the `ON DELETE RESTRICT` behaviour from `tests/db/test_schema.py` passing under RLS (tests there already set `app.tenant_id` per insert).
+3. Implement `0002`, `0003` (`TENANT_TABLES` as spec plus `skill_files`), `0004`; downgrades per 5.4.
 
 ## Done when
 All above pass; `uv run alembic upgrade head` and `downgrade base` both clean.
