@@ -198,7 +198,7 @@ def validate_ast(ast: dict[str, Any]) -> int:
     return nodes
 
 
-def _path_source(path: dict[str, Any]) -> str:
+def path_source(path: dict[str, Any]) -> str:
     parts = [path["root"]]
     for segment in path["segments"]:
         if IDENT_RE.fullmatch(segment):
@@ -238,7 +238,7 @@ def to_source(ast: dict[str, Any]) -> str:
         return joiner.join(parts)
     if op == "not":
         return f"!({to_source(ast['arg'])})"
-    path = _path_source(ast["path"]) if "path" in ast else ""
+    path = path_source(ast["path"]) if "path" in ast else ""
     if op == "cmp":
         return f"{path} {ast['cmp']} {_value_source(ast['value'])}"
     if op == "member":
