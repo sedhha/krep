@@ -398,6 +398,8 @@ Version:
 
 Published versions are immutable.
 
+Only the latest 10 published versions are retained per resource. Publishing an 11th archives the oldest (UI warns before publish). The current/aliased version, versions used by active runs, and versions pinned by another version are never archived.
+
 Connections are referenced separately so credential rotation does not create a new tool version.
 
 ```text
