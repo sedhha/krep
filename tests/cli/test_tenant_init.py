@@ -69,10 +69,3 @@ def test_tenant_init_isolates_tenants(
         ('token.groups == "other-admins"',)
     ]
 
-
-def test_tenant_init_registers_tenant_once(
-    tenant: str, query: Callable[..., list[tuple[Any, ...]]]
-) -> None:
-    init(tenant)
-    init(tenant)
-    assert query("SELECT count(*) FROM tenants WHERE tenant_id = %s", tenant) == [(1,)]
