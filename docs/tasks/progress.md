@@ -10,7 +10,7 @@ Status: `todo` | `in-progress` | `in-review` | `done` (with commit hash)
 | 04 | [Policy compiler to jsonpath](T04-policy-compiler.md) | done | c52031c |
 | 05 | [Policy evaluation, summary, leaf testing](T05-policy-evaluate.md) | done | 579037b |
 | 06 | [App skeleton, config, pool, tenant transaction](T06-app-skeleton.md) | done | d577347 |
-| 07 | [Identity: JWT, API key, principal, caller](T07-identity.md) | todo | |
+| 07 | [Identity: JWT, API key, principal, caller](T07-identity.md) | done | 9b764c3 |
 | 08 | [Ops CLI: tenant init, policy reset/recompile](T08-ops-cli.md) | todo | |
 | 09 | [Access policy API](T09-policy-api.md) | todo | |
 | 10 | [Spec validators and limits](T10-validators-limits.md) | todo | |
