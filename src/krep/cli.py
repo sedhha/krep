@@ -8,6 +8,7 @@ from uuid import UUID
 from psycopg import AsyncConnection
 
 from krep.policy.ast import PolicyError, PolicyInvalid, PolicyParseError, PolicyTooLarge
+from krep.policy.compile import COMPILER_VERSION, compile_ast
 from krep.policy.parser import parse
 from krep.policy.store import write_policy
 
@@ -37,6 +38,10 @@ def _parser() -> argparse.ArgumentParser:
     reset.add_argument("name", choices=RESERVED_POLICIES)
     reset.add_argument("--tenant", type=_tenant, required=True)
     reset.add_argument("--rule", required=True)
+    recompile = policy.add_parser(
+        "recompile", help="rewrite compiled_path for stale compiler versions"
+    )
+    recompile.add_argument("--tenant", type=_tenant, action="append", required=True)
     return parser
 
 
@@ -74,12 +79,33 @@ async def _policy_reset(conn: AsyncConnection, tenant_id: UUID, name: str, rule:
         await write_policy(conn, tenant_id, name, ast, CLI_USER, reserved=True)
 
 
+async def _recompile(conn: AsyncConnection, tenants: list[UUID]) -> int:
+    rewritten = 0
+    for tenant_id in tenants:
+        async with conn.transaction():
+            await _scope(conn, tenant_id)
+            cur = await conn.execute(
+                "SELECT id, ast FROM access_policies WHERE compiler_version < %s FOR UPDATE",
+                (COMPILER_VERSION,),
+            )
+            for policy_id, ast in await cur.fetchall():
+                await conn.execute(
+                    "UPDATE access_policies SET compiled_path = %s::jsonpath, "
+                    "compiler_version = %s WHERE id = %s",
+                    (compile_ast(ast), COMPILER_VERSION, policy_id),
+                )
+                rewritten += 1
+    return rewritten
+
+
 async def _run(args: argparse.Namespace) -> None:
     url = os.environ["KREP_MIGRATION_DATABASE_URL"].replace("postgresql+psycopg://", "postgresql://")
     async with await AsyncConnection.connect(url) as conn:
         if args.group == "tenant":
             await _tenant_init(conn, args.tenant, args.admin_rule, args.writer_rule)
             print(f"tenant {args.tenant} initialised")
+        elif args.command == "recompile":
+            print(f"recompiled {await _recompile(conn, args.tenant)} policies")
         else:
             await _policy_reset(conn, args.tenant, args.name, args.rule)
             print(f"{args.name} reset for tenant {args.tenant}")
