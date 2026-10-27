@@ -14,7 +14,7 @@ Status: `todo` | `in-progress` | `in-review` | `done` (with commit hash)
 | 08 | [Ops CLI: tenant init, policy reset/recompile](T08-ops-cli.md) | done | 5939796 |
 | 09 | [Access policy API](T09-policy-api.md) | done | 602236d |
 | 10 | [Spec validators and limits](T10-validators-limits.md) | done | 7f0ec4e |
-| 11 | [Resources: create, list, get, patch, archive, delete](T11-resources.md) | todo | |
+| 11 | [Resources: create, list, get, patch, archive, delete](T11-resources.md) | in-review | |
 | 12 | [Versions: drafts, publish, retention, current](T12-versions-publish.md) | todo | |
 | 13 | [Search query builder and registry_search()](T13-search-core.md) | todo | |
 | 14 | [Search API, synonyms, zero-result metric](T14-search-api-synonyms.md) | todo | |
