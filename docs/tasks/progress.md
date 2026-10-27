@@ -12,7 +12,7 @@ Status: `todo` | `in-progress` | `in-review` | `done` (with commit hash)
 | 06 | [App skeleton, config, pool, tenant transaction](T06-app-skeleton.md) | done | d577347 |
 | 07 | [Identity: JWT, API key, principal, caller](T07-identity.md) | done | 9b764c3 |
 | 08 | [Ops CLI: tenant init, policy reset/recompile](T08-ops-cli.md) | done | 5939796 |
-| 09 | [Access policy API](T09-policy-api.md) | in-review | |
+| 09 | [Access policy API](T09-policy-api.md) | done | 602236d |
 | 10 | [Spec validators and limits](T10-validators-limits.md) | todo | |
 | 11 | [Resources: create, list, get, patch, archive, delete](T11-resources.md) | todo | |
 | 12 | [Versions: drafts, publish, retention, current](T12-versions-publish.md) | todo | |
