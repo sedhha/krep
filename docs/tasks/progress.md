@@ -12,7 +12,7 @@ Status: `todo` | `in-progress` | `in-review` | `done` (with commit hash)
 | 06 | [App skeleton, config, pool, tenant transaction](T06-app-skeleton.md) | done | d577347 |
 | 07 | [Identity: JWT, API key, principal, caller](T07-identity.md) | done | 9b764c3 |
 | 08 | [Ops CLI: tenant init, policy reset/recompile](T08-ops-cli.md) | done | 5939796 |
-| 09 | [Access policy API](T09-policy-api.md) | todo | |
+| 09 | [Access policy API](T09-policy-api.md) | in-review | |
 | 10 | [Spec validators and limits](T10-validators-limits.md) | todo | |
 | 11 | [Resources: create, list, get, patch, archive, delete](T11-resources.md) | todo | |
 | 12 | [Versions: drafts, publish, retention, current](T12-versions-publish.md) | todo | |
@@ -24,3 +24,5 @@ Status: `todo` | `in-progress` | `in-review` | `done` (with commit hash)
 | 18 | [Benchmark, hardening, end-to-end walkthrough](T18-benchmark-hardening.md) | todo | |
 
 ## Notes
+
+- T09: reserved policies reject delete and rename with `409 policy_reserved` (spec 8.6/14.12 gives no code). Other codes the spec leaves open: `409 policy_name_taken`, `409 policy_limit_reached`, `422 policy_invalid`.

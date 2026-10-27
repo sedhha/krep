@@ -5,6 +5,7 @@ from fastapi import FastAPI
 
 from krep.api.errors import install_error_handlers
 from krep.api.logging import install_request_logging
+from krep.api.policies import router as policies_router
 from krep.config import get_settings
 from krep.db.pool import open_pool
 
@@ -23,6 +24,7 @@ def create_app() -> FastAPI:
     app = FastAPI(lifespan=lifespan)
     install_error_handlers(app)
     install_request_logging(app)
+    app.include_router(policies_router)
     return app
 
 
