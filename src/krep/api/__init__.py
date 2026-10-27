@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from krep.api.errors import install_error_handlers
+from krep.api.limits import router as limits_router
 from krep.api.logging import install_request_logging
 from krep.api.policies import router as policies_router
 from krep.config import get_settings
@@ -25,6 +26,7 @@ def create_app() -> FastAPI:
     install_error_handlers(app)
     install_request_logging(app)
     app.include_router(policies_router)
+    app.include_router(limits_router)
     return app
 
 

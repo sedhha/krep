@@ -13,7 +13,7 @@ Status: `todo` | `in-progress` | `in-review` | `done` (with commit hash)
 | 07 | [Identity: JWT, API key, principal, caller](T07-identity.md) | done | 9b764c3 |
 | 08 | [Ops CLI: tenant init, policy reset/recompile](T08-ops-cli.md) | done | 5939796 |
 | 09 | [Access policy API](T09-policy-api.md) | done | 602236d |
-| 10 | [Spec validators and limits](T10-validators-limits.md) | todo | |
+| 10 | [Spec validators and limits](T10-validators-limits.md) | in-review | |
 | 11 | [Resources: create, list, get, patch, archive, delete](T11-resources.md) | todo | |
 | 12 | [Versions: drafts, publish, retention, current](T12-versions-publish.md) | todo | |
 | 13 | [Search query builder and registry_search()](T13-search-core.md) | todo | |
