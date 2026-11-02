@@ -5,13 +5,12 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Request, Response
 from psycopg import AsyncConnection
 from pydantic import BaseModel, ValidationError
-from starlette.datastructures import UploadFile
 
 from krep.api.deps import db, get_caller, require_write
 from krep.api.errors import ApiError
+from krep.api.skill_archive import is_multipart, read_archive_part
 from krep.identity.resolve import Caller
 from krep.registry import publish, versions
-from krep.registry.skill_archive import MAX_ZIP_BYTES
 
 router = APIRouter(prefix="/v1/registry/{resource_id}")
 
@@ -46,17 +45,6 @@ def _from_validation_error(exc: ValidationError) -> ApiError:
     )
 
 
-def _is_multipart(request: Request) -> bool:
-    return request.headers.get("content-type", "").startswith("multipart/form-data")
-
-
-async def _archive_part(request: Request) -> bytes | None:
-    archive = (await request.form()).get("archive")
-    if isinstance(archive, UploadFile):
-        return await archive.read(MAX_ZIP_BYTES + 1)
-    return None
-
-
 async def _json_body(request: Request) -> Any:
     raw = await request.body()
     if not raw.strip():
@@ -76,9 +64,9 @@ async def list_versions(resource_id: UUID, caller: Authenticated, conn: Conn) ->
 async def create_draft(
     resource_id: UUID, request: Request, caller: Writer, conn: Conn
 ) -> dict[str, Any]:
-    if _is_multipart(request):
+    if is_multipart(request):
         return await versions.create_draft(
-            conn, caller, resource_id, archive=await _archive_part(request)
+            conn, caller, resource_id, archive=await read_archive_part(request)
         )
     try:
         body = DraftIn.model_validate(await _json_body(request))
@@ -106,9 +94,9 @@ async def get_archive(resource_id: UUID, n: int, caller: Authenticated, conn: Co
 async def replace_draft(
     resource_id: UUID, n: int, request: Request, caller: Writer, conn: Conn
 ) -> dict[str, Any]:
-    if _is_multipart(request):
+    if is_multipart(request):
         return await versions.replace_draft(
-            conn, caller, resource_id, n, archive=await _archive_part(request)
+            conn, caller, resource_id, n, archive=await read_archive_part(request)
         )
     try:
         body = ReplaceIn.model_validate(await _json_body(request))

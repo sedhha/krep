@@ -5,13 +5,12 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query, Request, Response
 from psycopg import AsyncConnection
 from pydantic import BaseModel, ValidationError, model_validator
-from starlette.datastructures import UploadFile
 
 from krep.api.deps import db, get_caller, require_write
 from krep.api.errors import ApiError
+from krep.api.skill_archive import is_multipart, read_multipart
 from krep.identity.resolve import Caller
 from krep.registry import bundle, resources
-from krep.registry.skill_archive import MAX_ZIP_BYTES
 
 router = APIRouter(prefix="/v1/registry")
 
@@ -70,13 +69,12 @@ def _from_validation_error(exc: ValidationError) -> ApiError:
 
 
 async def _create_payload(request: Request) -> tuple[Any, bytes | None]:
-    if request.headers.get("content-type", "").startswith("multipart/form-data"):
-        form = await request.form()
-        metadata = form.get("metadata")
-        if not isinstance(metadata, str):
+    if is_multipart(request):
+        form = await read_multipart(request)
+        metadata = form.fields.get("metadata")
+        if metadata is None:
             raise _invalid("metadata", "required")
-        archive = form.get("archive")
-        data = await archive.read(MAX_ZIP_BYTES + 1) if isinstance(archive, UploadFile) else None
+        data = form.archive
         raw = metadata
     else:
         data = None
