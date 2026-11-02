@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from krep.api.errors import install_error_handlers
 from krep.api.limits import router as limits_router
 from krep.api.logging import install_request_logging
+from krep.api.metrics import router as metrics_router
 from krep.api.policies import router as policies_router
 from krep.api.registry import router as registry_router
 from krep.api.search import router as search_router
@@ -28,6 +29,7 @@ def create_app() -> FastAPI:
     app = FastAPI(lifespan=lifespan)
     install_error_handlers(app)
     install_request_logging(app)
+    app.include_router(metrics_router)
     app.include_router(policies_router)
     app.include_router(limits_router)
     app.include_router(search_router)

@@ -5,6 +5,7 @@ from collections.abc import Callable
 import httpx
 import pytest
 from fastapi import FastAPI
+from prometheus_client import REGISTRY
 
 from krep.api import create_app
 from krep.api import search as search_api
@@ -17,6 +18,10 @@ from krep.search import synonyms
 from tests.api.conftest import OwnerExec, Pool
 
 MakeSearchClient = Callable[..., httpx.AsyncClient]
+
+
+def zero_results(tenant: str) -> float:
+    return REGISTRY.get_sample_value("search_zero_results_total", {"tenant": tenant}) or 0.0
 
 
 @pytest.fixture
@@ -40,7 +45,6 @@ def make_search_client(pool: Pool) -> MakeSearchClient:
 def fresh_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     set_log_flag(monkeypatch, False)
     monkeypatch.setattr(synonyms, "DEFAULT_CACHE", synonyms.SynonymCache())
-    search_api.ZERO_RESULTS_TOTAL.clear()
 
 
 async def add(
@@ -177,13 +181,13 @@ async def test_ac26_zero_results_counted_for_that_tenant_only(
     await add(owner_exec, tenant_id, "alpha", "Refund Agent")
     async with make_search_client(tenant_id) as c, make_search_client(other) as o:
         await c.get("/v1/registry/search", params={"q": "refund"})
-        assert search_api.ZERO_RESULTS_TOTAL[str(tenant_id)] == 0
+        assert zero_results(str(tenant_id)) == 0
         await c.get("/v1/registry/search", params={"q": "nonexistentterm"})
-        assert search_api.ZERO_RESULTS_TOTAL[str(tenant_id)] == 1
-        assert search_api.ZERO_RESULTS_TOTAL[str(other)] == 0
+        assert zero_results(str(tenant_id)) == 1
+        assert zero_results(str(other)) == 0
         await o.get("/v1/registry/search", params={"q": "refund"})
-        assert search_api.ZERO_RESULTS_TOTAL[str(other)] == 1
-        assert search_api.ZERO_RESULTS_TOTAL[str(tenant_id)] == 1
+        assert zero_results(str(other)) == 1
+        assert zero_results(str(tenant_id)) == 1
 
 
 async def test_ac26_empty_listing_and_later_pages_are_not_missed_searches(
@@ -193,7 +197,7 @@ async def test_ac26_empty_listing_and_later_pages_are_not_missed_searches(
     async with make_search_client(tenant_id) as c:
         await c.get("/v1/registry/search", params={"q": "refund", "offset": 10})
         await c.get("/v1/registry/search", params={"type": "skill"})
-        assert search_api.ZERO_RESULTS_TOTAL[str(tenant_id)] == 0
+        assert zero_results(str(tenant_id)) == 0
 
 
 def set_log_flag(monkeypatch: pytest.MonkeyPatch, enabled: bool) -> None:

@@ -13,6 +13,7 @@ class Settings:
     migration_database_url: str
     search_semantic_enabled: bool = False
     search_log_zero_results: bool = False
+    metrics_token: str = ""
 
 
 @lru_cache
@@ -22,4 +23,5 @@ def get_settings() -> Settings:
         migration_database_url=os.environ.get("KREP_MIGRATION_DATABASE_URL", ""),
         search_semantic_enabled=_flag("KREP_SEARCH_SEMANTIC_ENABLED"),
         search_log_zero_results=_flag("KREP_SEARCH_LOG_ZERO_RESULTS"),
+        metrics_token=os.environ.get("KREP_METRICS_TOKEN", ""),
     )

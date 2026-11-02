@@ -1,5 +1,4 @@
 import logging
-from collections import Counter
 from typing import Annotated, Any
 from uuid import UUID
 
@@ -10,6 +9,7 @@ from pydantic import BaseModel
 from krep.api.deps import db, get_caller, require_admin
 from krep.config import get_settings
 from krep.identity.resolve import Caller
+from krep.metrics import SEARCH_ZERO_RESULTS
 from krep.search import synonyms
 from krep.search.engine import MAX_LIMIT, MAX_OFFSET, registry_search
 from krep.search.query import normalise
@@ -17,8 +17,6 @@ from krep.search.query import normalise
 router = APIRouter(prefix="/v1")
 
 logger = logging.getLogger("krep.search")
-
-ZERO_RESULTS_TOTAL: Counter[str] = Counter()
 
 Conn = Annotated[AsyncConnection, Depends(db)]
 Authenticated = Annotated[Caller, Depends(get_caller)]
@@ -45,7 +43,7 @@ async def search(
         conn, caller, q=q, type=type, tags=tag_list, limit=limit, offset=offset, groups=groups
     )
     if not hits and offset == 0 and q.strip():
-        ZERO_RESULTS_TOTAL[str(caller.tenant_id)] += 1
+        SEARCH_ZERO_RESULTS.labels(tenant=str(caller.tenant_id)).inc()
         if get_settings().search_log_zero_results:
             logger.info("search_zero_results", extra={"query": normalise(q)})
     return {
