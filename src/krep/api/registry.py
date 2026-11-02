@@ -10,7 +10,7 @@ from starlette.datastructures import UploadFile
 from krep.api.deps import db, get_caller, require_write
 from krep.api.errors import ApiError
 from krep.identity.resolve import Caller
-from krep.registry import resources
+from krep.registry import bundle, resources
 from krep.registry.skill_archive import MAX_ZIP_BYTES
 
 router = APIRouter(prefix="/v1/registry")
@@ -120,6 +120,13 @@ async def get_resource(resource_id: UUID, caller: Authenticated, conn: Conn) -> 
     if view is None:
         raise ApiError(404, "not_found", "resource not found")
     return view
+
+
+@router.get("/{resource_id}/bundle")
+async def get_bundle(
+    resource_id: UUID, caller: Authenticated, conn: Conn, version: int | None = None
+) -> dict[str, Any]:
+    return await bundle.resolve_bundle(conn, caller, resource_id, version)
 
 
 @router.patch("/{resource_id}")

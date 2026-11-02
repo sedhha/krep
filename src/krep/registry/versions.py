@@ -85,6 +85,15 @@ async def load_spec(conn: AsyncConnection, resource_type: str, version_id: UUID)
     return row
 
 
+async def spec_view(
+    conn: AsyncConnection, resource_id: UUID, resource_type: str, version_id: UUID, n: int
+) -> Row:
+    spec = await load_spec(conn, resource_type, version_id)
+    if resource_type == SKILL:
+        spec["archive_path"] = f"/v1/registry/{resource_id}/versions/{n}/archive"
+    return spec
+
+
 async def _view(
     conn: AsyncConnection, resource: Row, version: Row, with_spec: bool
 ) -> Row:
@@ -93,10 +102,9 @@ async def _view(
         for key in ("version", "status", "content_hash", "created_by", "created_at", "published_at")
     }
     if with_spec:
-        spec = await load_spec(conn, resource["type"], version["id"])
-        if resource["type"] == SKILL:
-            spec["archive_path"] = f"/v1/registry/{resource['id']}/versions/{version['version']}/archive"
-        view["spec"] = spec
+        view["spec"] = await spec_view(
+            conn, resource["id"], resource["type"], version["id"], version["version"]
+        )
     return view
 
 
