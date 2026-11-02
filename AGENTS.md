@@ -11,3 +11,11 @@ Design discussion happens turn by turn inside the design docs, not in chat.
 - Do not overwrite or restructure the user's own sections unless asked; Claude edits only its feedback section.
 
 For the registry implementation spec refer [Registry V1 Spec](docs/specs/v1.md).
+
+## Python imports
+
+Every time an import is added or changed in a Python file, keep the import block sorted the way ruff's isort rules (`I`) expect:
+
+- Sections in order: `__future__`, standard library, third-party, first-party (`krep`), local relative imports, separated by one blank line.
+- Within a section, plain `import x` statements come before `from x import y`, each group sorted alphabetically; names inside `from x import a, b` are sorted too.
+- Before finishing any change that touches imports, run `uv run ruff check --select I --fix <changed files>` and `uv run ruff format <changed files>`, and confirm both are clean.
