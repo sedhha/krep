@@ -8,13 +8,14 @@ from krep.api.errors import ApiError
 from krep.identity.resolve import Caller
 from krep.registry.prune import VersionInUse, delete_version_rows
 from krep.registry.resources import (
+    AGENT,
     SKILL,
     Row,
     can_edit,
     can_read,
     enforce_draft_cap,
     fetch_row,
-    insert_agent_spec,
+    insert_spec,
     lock_for_edit,
     not_found,
     release_skill_files,
@@ -24,6 +25,11 @@ from krep.registry.resources import (
 )
 from krep.registry.skill_archive import SkillArchive
 from krep.registry.specs import FieldError
+from krep.registry.subtypes import (
+    copy_generic_spec,
+    delete_generic_spec,
+    load_generic_spec,
+)
 
 VERSION_COLUMNS = "id, registry_id, version, status, content_hash, created_by, created_at, published_at"
 AGENT_SPEC_COLUMNS = (
@@ -59,6 +65,8 @@ async def require_version(conn: AsyncConnection, resource_id: UUID, n: int) -> R
 
 
 async def load_spec(conn: AsyncConnection, resource_type: str, version_id: UUID) -> Row:
+    if resource_type not in (SKILL, AGENT):
+        return await load_generic_spec(conn, resource_type, version_id)
     async with conn.cursor(row_factory=dict_row) as cur:
         if resource_type == SKILL:
             await cur.execute(
@@ -164,13 +172,15 @@ async def _copy_subtype(
             "SELECT %s, registry_id, tenant_id, content_sha256 FROM skills WHERE version_id = %s",
             (new_version_id, source_version_id),
         )
-    else:
+    elif resource["type"] == AGENT:
         columns = ", ".join(AGENT_SPEC_COLUMNS)
         await conn.execute(
             f"INSERT INTO agents (version_id, registry_id, tenant_id, {columns}) "
             f"SELECT %s, registry_id, tenant_id, {columns} FROM agents WHERE version_id = %s",
             (new_version_id, source_version_id),
         )
+    else:
+        await copy_generic_spec(conn, resource["type"], source_version_id, new_version_id)
 
 
 async def _source_version(
@@ -282,8 +292,11 @@ async def replace_draft(
         await release_skill_files(conn, caller.tenant_id, old)
     else:
         assert spec is not None
-        await conn.execute("DELETE FROM agents WHERE version_id = %s", (version["id"],))
-        await insert_agent_spec(conn, caller.tenant_id, resource_id, version["id"], spec)
+        if resource["type"] == AGENT:
+            await conn.execute("DELETE FROM agents WHERE version_id = %s", (version["id"],))
+        else:
+            await delete_generic_spec(conn, resource["type"], version["id"])
+        await insert_spec(conn, resource["type"], caller.tenant_id, resource_id, version["id"], spec)
     return await _view(conn, resource, version, True)
 
 

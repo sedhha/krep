@@ -4,14 +4,11 @@ from psycopg import AsyncConnection
 
 from krep.api.errors import ApiError
 from krep.identity.resolve import Caller
+from krep.registry.links import freeze_dependencies
 from krep.registry.prune import prune_for_publish
 from krep.registry.resources import SKILL, Row, lock_for_edit, validation_failed
 from krep.registry.specs import VALIDATORS, content_hash, validate_spec
 from krep.registry.versions import load_spec, require_version
-
-
-async def freeze_dependencies(conn: AsyncConnection, version_id: UUID) -> None:
-    return None
 
 
 def _hashable(resource_type: str, spec: Row) -> Row:

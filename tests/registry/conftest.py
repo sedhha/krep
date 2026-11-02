@@ -13,6 +13,7 @@ from psycopg_pool import AsyncConnectionPool
 
 from krep.api.deps import get_caller
 from krep.api.errors import install_error_handlers
+from krep.api.links import router as links_router
 from krep.api.registry import router as registry_router
 from krep.api.versions import router as versions_router
 from krep.config import Settings
@@ -194,6 +195,7 @@ def make_client(pool: Pool) -> MakeClient:
         install_error_handlers(app)
         app.include_router(registry_router)
         app.include_router(versions_router)
+        app.include_router(links_router)
 
         async def caller() -> Caller:
             return Caller(tenant, user, {"token": {}, "principal": {}}, write or admin, admin)

@@ -11,6 +11,7 @@ from krep.policy.evaluate import evaluate
 from krep.registry.limits import get_limit
 from krep.registry.skill_archive import SkillArchive, validate_skill_archive
 from krep.registry.specs import FieldError, validate_resource_fields, validate_spec
+from krep.registry.subtypes import insert_generic_spec
 
 COLUMNS = (
     "id, tenant_id, type, slug, name, description, tags, visibility, policy_id, status, "
@@ -18,6 +19,7 @@ COLUMNS = (
 )
 PATCHABLE = ("name", "description", "tags", "visibility", "policy_id", "meta")
 SKILL = "skill"
+AGENT = "agent"
 DEFAULT_LIST_LIMIT = 50
 
 Row = dict[str, Any]
@@ -199,6 +201,20 @@ async def insert_agent_spec(
     )
 
 
+async def insert_spec(
+    conn: AsyncConnection,
+    resource_type: str,
+    tenant_id: UUID,
+    registry_id: UUID,
+    version_id: UUID,
+    spec: Row,
+) -> None:
+    if resource_type == AGENT:
+        await insert_agent_spec(conn, tenant_id, registry_id, version_id, spec)
+    else:
+        await insert_generic_spec(conn, resource_type, tenant_id, registry_id, version_id, spec)
+
+
 def validated_subtype(body: Row) -> tuple[SkillArchive | None, list[FieldError]]:
     resource_type: str = body["type"]
     spec: Row | None = body.get("spec")
@@ -310,7 +326,9 @@ async def _insert_resource(
             (version_id, registry_id, caller.tenant_id, archive.content_sha256),
         )
     else:
-        await insert_agent_spec(conn, caller.tenant_id, registry_id, version_id, body["spec"])
+        await insert_spec(
+            conn, body["type"], caller.tenant_id, registry_id, version_id, body["spec"]
+        )
     return registry_id
 
 
