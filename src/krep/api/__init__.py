@@ -8,6 +8,7 @@ from krep.api.limits import router as limits_router
 from krep.api.logging import install_request_logging
 from krep.api.policies import router as policies_router
 from krep.api.registry import router as registry_router
+from krep.api.search import router as search_router
 from krep.api.versions import router as versions_router
 from krep.config import get_settings
 from krep.db.pool import open_pool
@@ -29,6 +30,7 @@ def create_app() -> FastAPI:
     install_request_logging(app)
     app.include_router(policies_router)
     app.include_router(limits_router)
+    app.include_router(search_router)
     app.include_router(registry_router)
     app.include_router(versions_router)
     return app
