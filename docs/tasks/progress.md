@@ -19,7 +19,7 @@ Status: `todo` | `in-progress` | `in-review` | `done` (with commit hash)
 | 13 | [Search query builder and registry_search()](T13-search-core.md) | done | acefc70 |
 | 14 | [Search API, synonyms, zero-result metric](T14-search-api-synonyms.md) | done | 88aa83b |
 | 15 | [Links: rules, acceptance, cycles, freezing](T15-links.md) | done | 44505e1 |
-| 16 | [Bundle resolution](T16-bundle.md) | todo | |
+| 16 | [Bundle resolution](T16-bundle.md) | done | 80d1fd8 |
 | 17 | [Uploads and skill resources](T17-uploads.md) | todo | |
 | 18 | [Benchmark, hardening, end-to-end walkthrough](T18-benchmark-hardening.md) | todo | |
 
