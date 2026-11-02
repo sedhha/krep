@@ -50,10 +50,14 @@ def make_registry_client(pool: Pool) -> MakeRegistryClient:
         app.include_router(router)
 
         async def caller() -> Caller:
-            return Caller(tenant, user, {"token": {}, "principal": {}}, write or admin, admin)
+            return Caller(
+                tenant, user, {"token": {}, "principal": {}}, write or admin, admin
+            )
 
         app.dependency_overrides[get_caller] = caller
-        return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t")
+        return httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://t"
+        )
 
     return make
 
@@ -156,19 +160,30 @@ async def test_create_skill_rejected_archive_is_422_and_nothing_stored(
 async def test_create_skill_with_json_spec_is_422(owner: httpx.AsyncClient) -> None:
     r = await owner.post(
         BASE,
-        json={"type": "skill", "slug": "refund-flow", "name": "n", "spec": {"instructions": "x"}},
+        json={
+            "type": "skill",
+            "slug": "refund-flow",
+            "name": "n",
+            "spec": {"instructions": "x"},
+        },
     )
     assert r.status_code == 422
     assert {"field": "spec", "message": "skills take an archive"} in r.json()["errors"]
 
 
-async def test_create_multipart_without_metadata_is_422(owner: httpx.AsyncClient) -> None:
-    r = await owner.post(BASE, files={"archive": ("x.zip", skill_zip(), "application/zip")})
+async def test_create_multipart_without_metadata_is_422(
+    owner: httpx.AsyncClient,
+) -> None:
+    r = await owner.post(
+        BASE, files={"archive": ("x.zip", skill_zip(), "application/zip")}
+    )
     assert r.status_code == 422
     assert r.json()["errors"][0]["field"] == "metadata"
 
 
-async def test_create_multipart_metadata_not_json_is_422(owner: httpx.AsyncClient) -> None:
+async def test_create_multipart_metadata_not_json_is_422(
+    owner: httpx.AsyncClient,
+) -> None:
     r = await owner.post(BASE, data={"metadata": "{nope"})
     assert r.status_code == 422
 
@@ -193,7 +208,9 @@ async def test_ac16_parallel_creates_never_exceed_the_cap(
 async def test_list_filters_and_pagination(owner: httpx.AsyncClient) -> None:
     for i in range(3):
         await create_agent(owner, slug=f"agent-{i}")
-    page = await owner.get(BASE, params={"type": "agent", "status": "draft", "limit": 2})
+    page = await owner.get(
+        BASE, params={"type": "agent", "status": "draft", "limit": 2}
+    )
     assert len(page.json()["items"]) == 2
     rest = await owner.get(BASE, params={"limit": 2, "offset": 2})
     assert len(rest.json()["items"]) == 1
@@ -211,7 +228,10 @@ async def test_list_requires_write_permission(
 async def test_get_hidden_draft_is_404_not_403(
     make_registry_client: MakeRegistryClient, tenant: uuid.UUID
 ) -> None:
-    async with make_registry_client(tenant, "u1") as a, make_registry_client(tenant, "u2") as b:
+    async with (
+        make_registry_client(tenant, "u1") as a,
+        make_registry_client(tenant, "u2") as b,
+    ):
         created = await create_agent(a)
         assert (await a.get(f"{BASE}/{created['id']}")).status_code == 200
         assert (await b.get(f"{BASE}/{created['id']}")).status_code == 404
@@ -220,7 +240,9 @@ async def test_get_hidden_draft_is_404_not_403(
 
 async def test_patch_updates_fields(owner: httpx.AsyncClient) -> None:
     created = await create_agent(owner)
-    r = await owner.patch(f"{BASE}/{created['id']}", json={"name": "Renamed", "tags": ["x"]})
+    r = await owner.patch(
+        f"{BASE}/{created['id']}", json={"name": "Renamed", "tags": ["x"]}
+    )
     assert r.status_code == 200
     assert (r.json()["name"], r.json()["tags"]) == ("Renamed", ["x"])
 
@@ -241,9 +263,14 @@ async def test_patch_null_name_is_422(owner: httpx.AsyncClient) -> None:
 async def test_patch_by_non_owner_is_403_for_visible_and_404_for_hidden(
     make_registry_client: MakeRegistryClient, tenant: uuid.UUID, pool: Pool
 ) -> None:
-    async with make_registry_client(tenant, "u1") as a, make_registry_client(tenant, "u2") as b:
+    async with (
+        make_registry_client(tenant, "u1") as a,
+        make_registry_client(tenant, "u2") as b,
+    ):
         draft = await create_agent(a, slug="draft-one")
-        assert (await b.patch(f"{BASE}/{draft['id']}", json={"name": "x"})).status_code == 404
+        assert (
+            await b.patch(f"{BASE}/{draft['id']}", json={"name": "x"})
+        ).status_code == 404
 
 
 async def test_archive_of_draft_is_409(owner: httpx.AsyncClient) -> None:
@@ -261,7 +288,9 @@ async def test_delete_returns_204_then_404(owner: httpx.AsyncClient) -> None:
     assert (await owner.delete(f"{BASE}/{created['id']}")).status_code == 404
 
 
-async def test_types_route_is_not_shadowed_by_id_route(pool: Pool, tenant: uuid.UUID) -> None:
+async def test_types_route_is_not_shadowed_by_id_route(
+    pool: Pool, tenant: uuid.UUID
+) -> None:
     from krep.api import create_app
 
     app = create_app()
@@ -271,7 +300,9 @@ async def test_types_route_is_not_shadowed_by_id_route(pool: Pool, tenant: uuid.
         return Caller(tenant, "u1", {"token": {}, "principal": {}}, True, False)
 
     app.dependency_overrides[get_caller] = caller
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://t"
+    ) as c:
         r = await c.get(f"{BASE}/types")
     assert r.status_code == 200
     assert "types" in r.json()

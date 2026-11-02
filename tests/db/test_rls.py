@@ -10,8 +10,15 @@ from psycopg import AsyncConnection
 from tests.conftest import role_url
 
 TENANT_TABLES = [
-    "access_policies", "access_policy_history", "registry", "registry_versions",
-    "agents", "skills", "skill_files", "registry_links", "registry_version_deps",
+    "access_policies",
+    "access_policy_history",
+    "registry",
+    "registry_versions",
+    "agents",
+    "skills",
+    "skill_files",
+    "registry_links",
+    "registry_version_deps",
     "search_synonyms",
 ]
 
@@ -67,8 +74,14 @@ async def test_ac1_rls_cross_tenant_zero_rows(app_conn: AsyncConnection) -> None
     await add_registry(app_conn, a, "agent-a")
     await add_registry(app_conn, b, "agent-b")
     await use_tenant(app_conn, a)
-    assert await count(app_conn, "SELECT count(*) FROM registry WHERE tenant_id = %s", b) == 0
-    assert await count(app_conn, "SELECT count(*) FROM registry WHERE tenant_id = %s", a) == 1
+    assert (
+        await count(app_conn, "SELECT count(*) FROM registry WHERE tenant_id = %s", b)
+        == 0
+    )
+    assert (
+        await count(app_conn, "SELECT count(*) FROM registry WHERE tenant_id = %s", a)
+        == 1
+    )
     assert await count(app_conn, "SELECT count(*) FROM registry") == 1
 
 
@@ -85,7 +98,9 @@ async def test_ac1_insert_for_another_tenant_fails_with_check(
         )
 
 
-async def test_ac1_skill_files_are_isolated_per_tenant(app_conn: AsyncConnection) -> None:
+async def test_ac1_skill_files_are_isolated_per_tenant(
+    app_conn: AsyncConnection,
+) -> None:
     a, b = uuid.uuid4(), uuid.uuid4()
     digest = await add_file(app_conn, a, b"archive-bytes")
     await add_file(app_conn, b, b"archive-bytes")
@@ -123,7 +138,9 @@ async def committed_synonym(migrated_db: str) -> AsyncIterator[uuid.UUID]:
         await conn.commit()
         yield tenant
         await use_tenant(conn, tenant)
-        await conn.execute("DELETE FROM search_synonyms WHERE tenant_id = %s", (tenant,))
+        await conn.execute(
+            "DELETE FROM search_synonyms WHERE tenant_id = %s", (tenant,)
+        )
         await conn.commit()
 
 

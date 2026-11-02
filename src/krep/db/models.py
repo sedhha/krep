@@ -204,12 +204,20 @@ class Agent(Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True))
     type: Mapped[str] = mapped_column(Text, server_default="agent")
     model: Mapped[str] = mapped_column(Text)
-    model_config: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'"))
+    model_config: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, server_default=text("'{}'")
+    )
     system_prompt: Mapped[str] = mapped_column(Text)
-    input_schema: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'"))
-    output_schema: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'"))
+    input_schema: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, server_default=text("'{}'")
+    )
+    output_schema: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, server_default=text("'{}'")
+    )
     hitl_rules: Mapped[list[Any]] = mapped_column(JSONB, server_default=text("'[]'"))
-    runtime_config: Mapped[dict[str, Any]] = mapped_column(JSONB, server_default=text("'{}'"))
+    runtime_config: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, server_default=text("'{}'")
+    )
     tool_refs: Mapped[list[Any]] = mapped_column(JSONB, server_default=text("'[]'"))
 
 
@@ -267,7 +275,9 @@ class LinkRule(Base):
         Text, ForeignKey("registry_types.type"), primary_key=True
     )
     relation: Mapped[str] = mapped_column(Text, primary_key=True)
-    auto_load_allowed: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    auto_load_allowed: Mapped[bool] = mapped_column(
+        Boolean, server_default=text("false")
+    )
     accept_by: Mapped[str] = mapped_column(Text)
 
 
@@ -338,7 +348,9 @@ class ResourceLimit(Base):
     id: Mapped[uuid.UUID] = uuid_pk()
     scope_type: Mapped[str] = mapped_column(Text)
     scope_id: Mapped[str | None] = mapped_column(Text)
-    resource_type: Mapped[str | None] = mapped_column(Text, ForeignKey("registry_types.type"))
+    resource_type: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("registry_types.type")
+    )
     limit_key: Mapped[str] = mapped_column(Text)
     value: Mapped[int] = mapped_column(Integer)
 
@@ -369,7 +381,9 @@ class TokenIssuer(Base):
     jwks_uri: Mapped[str] = mapped_column(Text)
     tenant_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     tenant_claim_path: Mapped[list[str] | None] = mapped_column(ARRAY(Text))
-    user_claim_path: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{sub}'"))
+    user_claim_path: Mapped[list[str]] = mapped_column(
+        ARRAY(Text), server_default=text("'{sub}'")
+    )
     allow_principal: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
     enabled: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
 

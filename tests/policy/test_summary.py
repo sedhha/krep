@@ -26,11 +26,15 @@ def test_single_leaf() -> None:
 
 
 def test_comparisons() -> None:
-    assert summary_of("token.clearance >= 3") == "Visible when: clearance is at least 3."
+    assert (
+        summary_of("token.clearance >= 3") == "Visible when: clearance is at least 3."
+    )
     assert summary_of("token.clearance > 3") == (
         "Visible when: clearance is greater than 3."
     )
-    assert summary_of("token.clearance < 3") == "Visible when: clearance is less than 3."
+    assert (
+        summary_of("token.clearance < 3") == "Visible when: clearance is less than 3."
+    )
     assert summary_of("token.clearance <= 3") == "Visible when: clearance is at most 3."
     assert summary_of('token.roles != "admin"') == (
         'Visible when: roles is not "admin".'

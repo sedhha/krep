@@ -1,43 +1,14 @@
-from collections.abc import AsyncGenerator
-from contextlib import asynccontextmanager
+from importlib import import_module
+from typing import TYPE_CHECKING, Any
 
-from fastapi import FastAPI
+if TYPE_CHECKING:
+    from krep.api.main import app as app
+    from krep.api.main import create_app as create_app
 
-from krep.api.errors import install_error_handlers
-from krep.api.limits import router as limits_router
-from krep.api.links import router as links_router
-from krep.api.logging import install_request_logging
-from krep.api.metrics import router as metrics_router
-from krep.api.policies import router as policies_router
-from krep.api.registry import router as registry_router
-from krep.api.search import router as search_router
-from krep.api.versions import router as versions_router
-from krep.config import get_settings
-from krep.db.pool import open_pool
+__all__ = ["app", "create_app"]
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
-    pool = await open_pool(get_settings())
-    app.state.pool = pool
-    try:
-        yield
-    finally:
-        await pool.close()
-
-
-def create_app() -> FastAPI:
-    app = FastAPI(lifespan=lifespan)
-    install_error_handlers(app)
-    install_request_logging(app)
-    app.include_router(metrics_router)
-    app.include_router(policies_router)
-    app.include_router(limits_router)
-    app.include_router(search_router)
-    app.include_router(registry_router)
-    app.include_router(versions_router)
-    app.include_router(links_router)
-    return app
-
-
-app = create_app()
+def __getattr__(name: str) -> Any:
+    if name in __all__:
+        return getattr(import_module("krep.api.main"), name)
+    raise AttributeError(name)

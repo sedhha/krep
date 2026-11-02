@@ -46,7 +46,9 @@ async def test_new_draft_copies_current_version_spec(
     spec = (await get_version(conn, caller, rid, 2))["spec"]
     assert spec["model"] == AGENT_SPEC["model"]
     assert spec["system_prompt"] == AGENT_SPEC["system_prompt"]
-    assert await scalar(conn, "SELECT next_version FROM registry WHERE id = %s", rid) == 3
+    assert (
+        await scalar(conn, "SELECT next_version FROM registry WHERE id = %s", rid) == 3
+    )
 
 
 async def test_new_draft_from_version_copies_that_version(
@@ -59,9 +61,13 @@ async def test_new_draft_from_version_copies_that_version(
     await replace_draft(conn, caller, rid, 2, spec=spec_with("second"))
     await publish(conn, caller, rid, 2)
     await create_draft(conn, caller, rid, from_version=1)
-    assert (await get_version(conn, caller, rid, 3))["spec"]["system_prompt"] == "You help."
+    assert (await get_version(conn, caller, rid, 3))["spec"][
+        "system_prompt"
+    ] == "You help."
     await create_draft(conn, caller, rid)
-    assert (await get_version(conn, caller, rid, 4))["spec"]["system_prompt"] == "second"
+    assert (await get_version(conn, caller, rid, 4))["spec"][
+        "system_prompt"
+    ] == "second"
 
 
 async def test_never_published_resource_copies_latest_draft(
@@ -72,7 +78,9 @@ async def test_never_published_resource_copies_latest_draft(
     await create_draft(conn, caller, rid)
     await replace_draft(conn, caller, rid, 2, spec=spec_with("latest"))
     await create_draft(conn, caller, rid)
-    assert (await get_version(conn, caller, rid, 3))["spec"]["system_prompt"] == "latest"
+    assert (await get_version(conn, caller, rid, 3))["spec"][
+        "system_prompt"
+    ] == "latest"
 
 
 async def test_new_draft_from_missing_version_is_404(
@@ -108,7 +116,8 @@ async def test_skill_draft_copy_shares_the_file_row_and_hash(
     await create_draft(conn, caller, rid)
     assert await scalar(conn, "SELECT count(*) FROM skill_files") == 1
     cur = await conn.execute(
-        "SELECT count(DISTINCT content_sha256), count(*) FROM skills WHERE registry_id = %s", (rid,)
+        "SELECT count(DISTINCT content_sha256), count(*) FROM skills WHERE registry_id = %s",
+        (rid,),
     )
     assert await cur.fetchone() == (1, 2)
     one = await get_version(conn, caller, rid, 1)
@@ -121,7 +130,9 @@ async def test_skill_draft_from_upload_creates_its_own_file(
 ) -> None:
     caller = caller_for(tenant)
     rid = await new_skill(conn, caller)
-    out = await create_draft(conn, caller, rid, archive=skill_zip("refund-flow", "changed"))
+    out = await create_draft(
+        conn, caller, rid, archive=skill_zip("refund-flow", "changed")
+    )
     assert out["version"]["version"] == 2
     assert await scalar(conn, "SELECT count(*) FROM skill_files") == 2
 
@@ -143,7 +154,10 @@ async def test_replace_agent_draft_swaps_the_spec(
     rid = await new_agent(conn, caller)
     out = await replace_draft(conn, caller, rid, 1, spec=spec_with("replaced"))
     assert out["spec"]["system_prompt"] == "replaced"
-    assert await scalar(conn, "SELECT count(*) FROM agents WHERE registry_id = %s", rid) == 1
+    assert (
+        await scalar(conn, "SELECT count(*) FROM agents WHERE registry_id = %s", rid)
+        == 1
+    )
 
 
 async def test_replace_with_invalid_spec_is_422_and_keeps_the_old_one(
@@ -154,7 +168,9 @@ async def test_replace_with_invalid_spec_is_422_and_keeps_the_old_one(
     with pytest.raises(ApiError) as exc:
         await replace_draft(conn, caller, rid, 1, spec={"model": ""})
     assert exc.value.status == 422
-    assert (await get_version(conn, caller, rid, 1))["spec"]["system_prompt"] == "You help."
+    assert (await get_version(conn, caller, rid, 1))["spec"][
+        "system_prompt"
+    ] == "You help."
 
 
 async def test_replace_published_version_is_409_version_immutable(
@@ -173,9 +189,15 @@ async def test_replace_skill_archive_swaps_atomically_and_releases_the_old_file(
 ) -> None:
     caller = caller_for(tenant)
     rid = await new_skill(conn, caller)
-    before = await scalar(conn, "SELECT content_sha256 FROM skills WHERE registry_id = %s", rid)
-    await replace_draft(conn, caller, rid, 1, archive=skill_zip("refund-flow", "new body"))
-    after = await scalar(conn, "SELECT content_sha256 FROM skills WHERE registry_id = %s", rid)
+    before = await scalar(
+        conn, "SELECT content_sha256 FROM skills WHERE registry_id = %s", rid
+    )
+    await replace_draft(
+        conn, caller, rid, 1, archive=skill_zip("refund-flow", "new body")
+    )
+    after = await scalar(
+        conn, "SELECT content_sha256 FROM skills WHERE registry_id = %s", rid
+    )
     assert after != before
     assert await scalar(conn, "SELECT count(*) FROM skill_files") == 1
     assert await scalar(conn, "SELECT content_sha256 FROM skill_files") == after
@@ -186,11 +208,18 @@ async def test_replace_skill_with_invalid_archive_leaves_the_old_one_untouched(
 ) -> None:
     caller = caller_for(tenant)
     rid = await new_skill(conn, caller)
-    before = await scalar(conn, "SELECT content_sha256 FROM skills WHERE registry_id = %s", rid)
+    before = await scalar(
+        conn, "SELECT content_sha256 FROM skills WHERE registry_id = %s", rid
+    )
     with pytest.raises(ApiError) as exc:
         await replace_draft(conn, caller, rid, 1, archive=b"not a zip")
     assert exc.value.status == 422
-    assert await scalar(conn, "SELECT content_sha256 FROM skills WHERE registry_id = %s", rid) == before
+    assert (
+        await scalar(
+            conn, "SELECT content_sha256 FROM skills WHERE registry_id = %s", rid
+        )
+        == before
+    )
     assert await scalar(conn, "SELECT count(*) FROM skill_files") == 1
 
 
@@ -223,7 +252,9 @@ async def test_non_owner_gets_403_on_visible_and_404_on_hidden(
 ) -> None:
     owner, other = caller_for(tenant, "u1"), caller_for(tenant, "u2")
     hidden = (await create_resource(conn, owner, agent_body("hidden-one")))["id"]
-    shown = (await create_resource(conn, owner, agent_body("shown-one", visibility="tenant")))["id"]
+    shown = (
+        await create_resource(conn, owner, agent_body("shown-one", visibility="tenant"))
+    )["id"]
     await publish(conn, owner, shown, 1)
     with pytest.raises(ApiError) as a:
         await create_draft(conn, other, hidden)
@@ -235,7 +266,11 @@ async def test_non_owner_gets_403_on_visible_and_404_on_hidden(
 async def test_list_shows_drafts_only_to_owner_or_admin(
     conn: psycopg.AsyncConnection, tenant: uuid.UUID
 ) -> None:
-    owner, other, admin = caller_for(tenant, "u1"), caller_for(tenant, "u2"), caller_for(tenant, "u3", True)
+    owner, other, admin = (
+        caller_for(tenant, "u1"),
+        caller_for(tenant, "u2"),
+        caller_for(tenant, "u3", True),
+    )
     rid = (await create_resource(conn, owner, agent_body(visibility="tenant")))["id"]
     await publish(conn, owner, rid, 1)
     await create_draft(conn, owner, rid)
@@ -266,7 +301,9 @@ async def test_get_archive_returns_exact_bytes_and_hash(
     rid = (await create_resource(conn, caller, skill_body(archive=data)))["id"]
     got, sha = await get_archive(conn, caller, rid, 1)
     assert got == data
-    assert sha == await scalar(conn, "SELECT content_sha256 FROM skills WHERE registry_id = %s", rid)
+    assert sha == await scalar(
+        conn, "SELECT content_sha256 FROM skills WHERE registry_id = %s", rid
+    )
 
 
 async def test_get_archive_is_404_when_version_not_visible_or_not_a_skill(
@@ -311,7 +348,9 @@ async def test_concurrent_upload_of_same_bytes_during_cleanup_keeps_its_file(
     caller = caller_for(tenant)
     data = skill_zip("shared-skill", "race")
     async with tenant_transaction(pool, tenant) as setup:
-        rid = (await create_resource(setup, caller, skill_body("shared-skill", data)))["id"]
+        rid = (await create_resource(setup, caller, skill_body("shared-skill", data)))[
+            "id"
+        ]
 
     async def upload_same_bytes() -> None:
         async with tenant_transaction(pool, tenant) as other:
@@ -335,7 +374,11 @@ async def test_concurrent_upload_of_same_bytes_during_cleanup_keeps_its_file(
 
 async def test_api_draft_lifecycle(make_client: MakeClient, tenant: uuid.UUID) -> None:
     async with make_client(tenant) as c:
-        created = (await c.post(BASE, json={k: v for k, v in agent_body().items() if k != "archive"})).json()
+        created = (
+            await c.post(
+                BASE, json={k: v for k, v in agent_body().items() if k != "archive"}
+            )
+        ).json()
         rid = created["id"]
         r = await c.post(f"{BASE}/{rid}/versions", json={"from_version": 1})
         assert r.status_code == 201
@@ -346,7 +389,9 @@ async def test_api_draft_lifecycle(make_client: MakeClient, tenant: uuid.UUID) -
         r = await c.put(f"{BASE}/{rid}/versions/2", json={"spec": spec_with("via api")})
         assert r.status_code == 200
         assert r.json()["spec"]["system_prompt"] == "via api"
-        assert (await c.get(f"{BASE}/{rid}/versions/2")).json()["spec"]["system_prompt"] == "via api"
+        assert (await c.get(f"{BASE}/{rid}/versions/2")).json()["spec"][
+            "system_prompt"
+        ] == "via api"
         listing = (await c.get(f"{BASE}/{rid}/versions")).json()["items"]
         assert [v["version"] for v in listing] == [1, 2, 3]
         assert (await c.delete(f"{BASE}/{rid}/versions/3")).status_code == 204
@@ -370,7 +415,8 @@ async def test_api_skill_put_and_archive_download(
         rid = r.json()["id"]
         new = skill_zip("refund-flow", "second")
         put = await c.put(
-            f"{BASE}/{rid}/versions/1", files={"archive": ("a.zip", new, "application/zip")}
+            f"{BASE}/{rid}/versions/1",
+            files={"archive": ("a.zip", new, "application/zip")},
         )
         assert put.status_code == 200, put.text
         got = await c.get(f"{BASE}/{rid}/versions/1/archive")
@@ -380,7 +426,8 @@ async def test_api_skill_put_and_archive_download(
         assert got.headers["etag"] == f'"{put.json()["spec"]["content_sha256"]}"'
         assert got.headers["cache-control"] == "private, no-store"
         bad = await c.put(
-            f"{BASE}/{rid}/versions/1", files={"archive": ("a.zip", b"nope", "application/zip")}
+            f"{BASE}/{rid}/versions/1",
+            files={"archive": ("a.zip", b"nope", "application/zip")},
         )
         assert bad.status_code == 422
         assert (await c.get(f"{BASE}/{rid}/versions/1/archive")).content == new
@@ -388,7 +435,13 @@ async def test_api_skill_put_and_archive_download(
         assert no_archive.status_code == 422
         draft = await c.post(
             f"{BASE}/{rid}/versions",
-            files={"archive": ("a.zip", skill_zip("refund-flow", "third"), "application/zip")},
+            files={
+                "archive": (
+                    "a.zip",
+                    skill_zip("refund-flow", "third"),
+                    "application/zip",
+                )
+            },
         )
         assert draft.status_code == 201
         assert draft.json()["version"]["version"] == 2
@@ -416,5 +469,7 @@ async def test_api_versions_require_write_for_mutations(
     async with make_client(tenant, write=False) as reader:
         rid = uuid.uuid4()
         assert (await reader.post(f"{BASE}/{rid}/versions")).status_code == 403
-        assert (await reader.put(f"{BASE}/{rid}/versions/1", json={"spec": {}})).status_code == 403
+        assert (
+            await reader.put(f"{BASE}/{rid}/versions/1", json={"spec": {}})
+        ).status_code == 403
         assert (await reader.delete(f"{BASE}/{rid}/versions/1")).status_code == 403

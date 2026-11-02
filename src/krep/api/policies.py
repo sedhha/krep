@@ -83,7 +83,9 @@ def _rule_ast(source: str | None, ast: dict[str, Any] | None) -> dict[str, Any]:
             422, "policy_parse_error", exc.message, line=exc.line, column=exc.column
         ) from None
     except PolicyTooLarge as exc:
-        raise ApiError(422, "policy_too_large", str(exc), nodes=exc.nodes, max=exc.max) from None
+        raise ApiError(
+            422, "policy_too_large", str(exc), nodes=exc.nodes, max=exc.max
+        ) from None
     except PolicyInvalid as exc:
         raise ApiError(422, "policy_invalid", exc.message) from None
 
@@ -93,7 +95,9 @@ def _not_found() -> ApiError:
 
 
 def _reserved() -> ApiError:
-    return ApiError(409, "policy_reserved", "reserved policies cannot be renamed or deleted")
+    return ApiError(
+        409, "policy_reserved", "reserved policies cannot be renamed or deleted"
+    )
 
 
 def _name_taken() -> ApiError:
@@ -121,7 +125,9 @@ def _view(row: PolicyRow, usage_count: int, **extra: Any) -> dict[str, Any]:
 
 
 async def _usage_count(conn: AsyncConnection, policy_id: UUID) -> int:
-    cur = await conn.execute("SELECT count(*) FROM registry WHERE policy_id = %s", (policy_id,))
+    cur = await conn.execute(
+        "SELECT count(*) FROM registry WHERE policy_id = %s", (policy_id,)
+    )
     row = await cur.fetchone()
     return row[0] if row else 0
 
@@ -137,7 +143,9 @@ async def _fetch(conn: AsyncConnection, tenant_id: UUID, policy_id: UUID) -> Pol
     return PolicyRow(*row)
 
 
-async def _lock(conn: AsyncConnection, tenant_id: UUID, policy_id: UUID) -> tuple[str, bool, int]:
+async def _lock(
+    conn: AsyncConnection, tenant_id: UUID, policy_id: UUID
+) -> tuple[str, bool, int]:
     cur = await conn.execute(
         "SELECT name, reserved, rev FROM access_policies "
         "WHERE tenant_id = %s AND id = %s FOR UPDATE",
@@ -177,11 +185,20 @@ async def create_policy(caller: Admin, conn: Conn, body: PolicyIn) -> dict[str, 
     limit = await _max_policies(conn, caller.tenant_id)
     if total >= limit:
         raise ApiError(
-            409, "policy_limit_reached", "policy limit reached", max=limit, current=total
+            409,
+            "policy_limit_reached",
+            "policy limit reached",
+            max=limit,
+            current=total,
         )
     try:
         row = await write_policy(
-            conn, caller.tenant_id, body.name, ast, caller.user_id, description=body.description
+            conn,
+            caller.tenant_id,
+            body.name,
+            ast,
+            caller.user_id,
+            description=body.description,
         )
     except errors.UniqueViolation:
         raise _name_taken() from None
@@ -245,12 +262,18 @@ async def replace_policy(
             raise _reserved()
         try:
             await conn.execute(
-                "UPDATE access_policies SET name = %s WHERE id = %s", (body.name, policy_id)
+                "UPDATE access_policies SET name = %s WHERE id = %s",
+                (body.name, policy_id),
             )
         except errors.UniqueViolation:
             raise _name_taken() from None
     row = await write_policy(
-        conn, caller.tenant_id, body.name, ast, caller.user_id, description=body.description
+        conn,
+        caller.tenant_id,
+        body.name,
+        ast,
+        caller.user_id,
+        description=body.description,
     )
     return _view(row, await _usage_count(conn, policy_id), warnings=[])
 
@@ -274,7 +297,10 @@ async def delete_policy(policy_id: UUID, caller: Admin, conn: Conn) -> Response:
 
 @router.get("/{policy_id}/resources")
 async def policy_resources(
-    policy_id: UUID, caller: Admin, conn: Conn, limit: Annotated[int, Query(ge=1, le=500)] = 100
+    policy_id: UUID,
+    caller: Admin,
+    conn: Conn,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
 ) -> dict[str, Any]:
     await _fetch(conn, caller.tenant_id, policy_id)
     cur = await conn.execute(
@@ -283,7 +309,14 @@ async def policy_resources(
         (caller.tenant_id, policy_id, limit),
     )
     items = [
-        {"id": r[0], "type": r[1], "slug": r[2], "name": r[3], "status": r[4], "visibility": r[5]}
+        {
+            "id": r[0],
+            "type": r[1],
+            "slug": r[2],
+            "name": r[3],
+            "status": r[4],
+            "visibility": r[5],
+        }
         for r in await cur.fetchall()
     ]
     return {"usage_count": await _usage_count(conn, policy_id), "items": items}
@@ -298,7 +331,13 @@ async def policy_history(policy_id: UUID, caller: Admin, conn: Conn) -> dict[str
         (policy_id,),
     )
     items = [
-        {"rev": r[0], "ast": r[1], "source": r[2], "changed_by": r[3], "changed_at": r[4]}
+        {
+            "rev": r[0],
+            "ast": r[1],
+            "source": r[2],
+            "changed_by": r[3],
+            "changed_at": r[4],
+        }
         for r in await cur.fetchall()
     ]
     return {"items": items}
@@ -330,7 +369,11 @@ async def test_policy(
     return {
         "visible": await evaluate(conn, row.compiled_path, body.doc, caller.tenant_id),
         "leaves": [
-            {"text": leaf.text, "result": leaf.result, **({"note": leaf.note} if leaf.note else {})}
+            {
+                "text": leaf.text,
+                "result": leaf.result,
+                **({"note": leaf.note} if leaf.note else {}),
+            }
             for leaf in leaves
         ],
         "warnings": warnings_for(row.ast, body.doc),

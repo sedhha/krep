@@ -27,7 +27,10 @@ from tests.conftest import role_url
 Pool = AsyncConnectionPool[psycopg.AsyncConnection]
 SetLimit = Callable[..., Awaitable[None]]
 
-AGENT_SPEC: dict[str, Any] = {"model": "claude-sonnet-5-5", "system_prompt": "You help."}
+AGENT_SPEC: dict[str, Any] = {
+    "model": "claude-sonnet-5-5",
+    "system_prompt": "You help.",
+}
 
 
 def skill_zip(name: str = "refund-flow", body: str = "Body.") -> bytes:
@@ -51,7 +54,9 @@ def agent_body(slug: str = "refund-assistant", **extra: Any) -> dict[str, Any]:
     }
 
 
-def skill_body(slug: str = "refund-flow", archive: bytes | None = None) -> dict[str, Any]:
+def skill_body(
+    slug: str = "refund-flow", archive: bytes | None = None
+) -> dict[str, Any]:
     return {
         "type": "skill",
         "slug": slug,
@@ -82,7 +87,10 @@ async def new_agent(
 
 
 async def new_skill(
-    conn: psycopg.AsyncConnection, caller: Caller, slug: str = "refund-flow", body: str = "Body."
+    conn: psycopg.AsyncConnection,
+    caller: Caller,
+    slug: str = "refund-flow",
+    body: str = "Body.",
 ) -> uuid.UUID:
     created = await create_resource(
         conn, caller, skill_body(slug, skill_zip(slug, body))
@@ -97,7 +105,11 @@ async def publish_agent_versions(
     for n in range(2, count + 1):
         draft = await create_draft(conn, caller, resource_id)
         await replace_draft(
-            conn, caller, resource_id, draft["version"]["version"], spec=spec_with(f"v{n}")
+            conn,
+            caller,
+            resource_id,
+            draft["version"]["version"],
+            spec=spec_with(f"v{n}"),
         )
         await publish(conn, caller, resource_id, n)
 
@@ -137,7 +149,9 @@ async def link_pin(
     )
 
 
-async def version_id_of(conn: psycopg.AsyncConnection, resource_id: uuid.UUID, n: int) -> uuid.UUID:
+async def version_id_of(
+    conn: psycopg.AsyncConnection, resource_id: uuid.UUID, n: int
+) -> uuid.UUID:
     return await scalar(
         conn,
         "SELECT id FROM registry_versions WHERE registry_id = %s AND version = %s",
@@ -155,13 +169,17 @@ def tenant() -> uuid.UUID:
 async def conn(
     app_conn: psycopg.AsyncConnection, tenant: uuid.UUID
 ) -> AsyncIterator[psycopg.AsyncConnection]:
-    await app_conn.execute("SELECT set_config('app.tenant_id', %s, true)", (str(tenant),))
+    await app_conn.execute(
+        "SELECT set_config('app.tenant_id', %s, true)", (str(tenant),)
+    )
     yield app_conn
 
 
 @pytest_asyncio.fixture
 async def pool(migrated_db: str) -> AsyncIterator[Pool]:
-    settings = Settings(database_url=role_url("krep_app", migrated_db), migration_database_url="")
+    settings = Settings(
+        database_url=role_url("krep_app", migrated_db), migration_database_url=""
+    )
     async with await open_pool(settings, min_size=1, max_size=6) as pool:
         yield pool
 
@@ -172,7 +190,9 @@ async def set_limit(migrated_db: str, tenant: uuid.UUID) -> AsyncIterator[SetLim
         role_url("krep_owner", migrated_db), autocommit=True
     ) as owner:
 
-        async def run(key: str, value: int, resource_type: str | None = "agent") -> None:
+        async def run(
+            key: str, value: int, resource_type: str | None = "agent"
+        ) -> None:
             await owner.execute(
                 "INSERT INTO resource_limits (scope_type, scope_id, resource_type, limit_key, value) "
                 "VALUES ('tenant', %s, %s, %s, %s)",
@@ -198,9 +218,13 @@ def make_client(pool: Pool) -> MakeClient:
         app.include_router(links_router)
 
         async def caller() -> Caller:
-            return Caller(tenant, user, {"token": {}, "principal": {}}, write or admin, admin)
+            return Caller(
+                tenant, user, {"token": {}, "principal": {}}, write or admin, admin
+            )
 
         app.dependency_overrides[get_caller] = caller
-        return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t")
+        return httpx.AsyncClient(
+            transport=httpx.ASGITransport(app=app), base_url="http://t"
+        )
 
     return make

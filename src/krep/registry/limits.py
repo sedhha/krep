@@ -46,18 +46,24 @@ async def effective_limits(conn: AsyncConnection, tenant_id: UUID) -> dict[str, 
     keys = [
         r[0]
         for r in await (
-            await conn.execute("SELECT DISTINCT limit_key FROM resource_limits ORDER BY 1")
+            await conn.execute(
+                "SELECT DISTINCT limit_key FROM resource_limits ORDER BY 1"
+            )
         ).fetchall()
     ]
     types = [
         r[0]
-        for r in await (await conn.execute("SELECT type FROM registry_types ORDER BY 1")).fetchall()
+        for r in await (
+            await conn.execute("SELECT type FROM registry_types ORDER BY 1")
+        ).fetchall()
     ]
     limits = {key: await get_limit(conn, tenant_id=tenant_id, key=key) for key in keys}
     by_type: dict[str, dict[str, int]] = {}
     for resource_type in types:
         for key in keys:
-            value = await get_limit(conn, tenant_id=tenant_id, key=key, resource_type=resource_type)
+            value = await get_limit(
+                conn, tenant_id=tenant_id, key=key, resource_type=resource_type
+            )
             if value != limits[key]:
                 by_type.setdefault(resource_type, {})[key] = value
     return {"limits": limits, "types": by_type}

@@ -76,7 +76,9 @@ def _split_frontmatter(text: str) -> tuple[str, str] | str:
     return "SKILL.md frontmatter block is not closed"
 
 
-def _string(front: dict[str, Any], key: str, lo: int, hi: int, required: bool) -> str | None:
+def _string(
+    front: dict[str, Any], key: str, lo: int, hi: int, required: bool
+) -> str | None:
     if key not in front:
         return f"{key} is required" if required else None
     value = front[key]
@@ -141,7 +143,9 @@ def validate_skill_archive(
 
         if any("/" not in i.filename for i in files):
             return _fail("every file must be inside the single top-level directory")
-        tops = {i.filename.split("/", 1)[0] for i in zf.infolist() if i.filename.strip("/")}
+        tops = {
+            i.filename.split("/", 1)[0] for i in zf.infolist() if i.filename.strip("/")
+        }
         if len(tops) != 1:
             return _fail("archive must contain exactly one top-level directory")
         top = next(iter(tops))
@@ -151,7 +155,13 @@ def validate_skill_archive(
 
         try:
             skill_md, problem = _read_entries(zf, files, skill_path)
-        except (zipfile.BadZipFile, zlib.error, EOFError, NotImplementedError, RuntimeError):
+        except (
+            zipfile.BadZipFile,
+            zlib.error,
+            EOFError,
+            NotImplementedError,
+            RuntimeError,
+        ):
             return _fail("not a valid zip")
     if problem is not None or skill_md is None:
         return _fail(problem or "not a valid zip")
@@ -175,9 +185,13 @@ def validate_skill_archive(
     errors = _frontmatter_errors(front)
     if not errors:
         if top != front["name"]:
-            errors.append(FieldError("archive", "directory name must equal frontmatter name"))
+            errors.append(
+                FieldError("archive", "directory name must equal frontmatter name")
+            )
         if front["name"] != slug:
-            errors.append(FieldError("archive", "frontmatter name must equal the resource slug"))
+            errors.append(
+                FieldError("archive", "frontmatter name must equal the resource slug")
+            )
     if errors:
         return None, errors
 

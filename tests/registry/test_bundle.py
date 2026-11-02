@@ -88,10 +88,16 @@ async def test_published_root_returns_frozen_auto_load_deps_only(
     await publish(conn, caller, agent, 1)
     bundle = await resolve_bundle(conn, caller, agent, None)
     assert bundle["root"]["id"] == agent and bundle["root"]["version"] == 1
-    assert bundle["root"]["type"] == "agent" and "system_prompt" in bundle["root"]["spec"]
+    assert (
+        bundle["root"]["type"] == "agent" and "system_prompt" in bundle["root"]["spec"]
+    )
     assert slugs(bundle) == ["loaded-skill"]
     dependency = bundle["dependencies"][0]
-    assert (dependency["id"], dependency["type"], dependency["version"]) == (loaded, "skill", 1)
+    assert (dependency["id"], dependency["type"], dependency["version"]) == (
+        loaded,
+        "skill",
+        1,
+    )
     assert dependency["relation"] == "uses"
 
 
@@ -118,7 +124,9 @@ async def test_ac20_later_skill_publish_does_not_change_published_bundle(
     await create_link(conn, caller, agent, skill, "uses", "out", None, True)
     await publish(conn, caller, agent, 1)
     before = await resolve_bundle(conn, caller, agent, 1)
-    draft = await create_draft(conn, caller, skill, archive=skill_zip("refund-flow", "v2"))
+    draft = await create_draft(
+        conn, caller, skill, archive=skill_zip("refund-flow", "v2")
+    )
     await publish(conn, caller, skill, draft["version"]["version"])
     after = await resolve_bundle(conn, caller, agent, 1)
     assert after == before
@@ -209,16 +217,23 @@ async def test_draft_root_follows_pinned_link_and_frozen_deps_below_it(
     agent = await new_agent(conn, caller)
     await create_link(conn, caller, agent, top, "uses", "out", 1, True)
     bundle = await resolve_bundle(conn, caller, agent, 1)
-    assert [(d["slug"], d["version"]) for d in bundle["dependencies"]] == [("top-skill", 1), ("below-skill", 1)]
+    assert [(d["slug"], d["version"]) for d in bundle["dependencies"]] == [
+        ("top-skill", 1),
+        ("below-skill", 1),
+    ]
 
 
 async def test_invisible_root_is_404(
     conn: psycopg.AsyncConnection, tenant: uuid.UUID
 ) -> None:
     agent = await agent_using(conn, tenant, [])
-    err = await not_found_of(resolve_bundle(conn, caller_for(tenant, "stranger"), agent, None))
+    err = await not_found_of(
+        resolve_bundle(conn, caller_for(tenant, "stranger"), agent, None)
+    )
     assert (err.status, err.error) == (404, "not_found")
-    err = await not_found_of(resolve_bundle(conn, caller_for(tenant), uuid.uuid4(), None))
+    err = await not_found_of(
+        resolve_bundle(conn, caller_for(tenant), uuid.uuid4(), None)
+    )
     assert err.status == 404
 
 
@@ -229,7 +244,9 @@ async def test_dependency_included_though_caller_cannot_discover_it(
     skill = await published_skill(conn, tenant, "hidden-skill")
     agent = await new_agent(conn, owner)
     await create_link(conn, owner, agent, skill, "uses", "out", None, True)
-    await conn.execute("UPDATE registry SET visibility = 'tenant' WHERE id = %s", (agent,))
+    await conn.execute(
+        "UPDATE registry SET visibility = 'tenant' WHERE id = %s", (agent,)
+    )
     await publish(conn, owner, agent, 1)
     stranger = caller_for(tenant, "stranger")
     bundle = await resolve_bundle(conn, stranger, agent, None)
@@ -251,7 +268,9 @@ async def test_unknown_version_and_foreign_draft_are_404(
 ) -> None:
     owner = caller_for(tenant)
     agent = await agent_using(conn, tenant, [])
-    await conn.execute("UPDATE registry SET visibility = 'tenant' WHERE id = %s", (agent,))
+    await conn.execute(
+        "UPDATE registry SET visibility = 'tenant' WHERE id = %s", (agent,)
+    )
     await create_draft(conn, owner, agent)
     stranger = caller_for(tenant, "stranger")
     for version in (99, 2, 0):
@@ -278,11 +297,17 @@ async def test_bundle_query_never_selects_skill_file_content() -> None:
 async def test_http_bundle_route(make_client: MakeClient, tenant: uuid.UUID) -> None:
     async with make_client(tenant) as client:
         agent = (await client.post("/v1/registry", json=agent_body())).json()["id"]
-        assert (await client.post(f"/v1/registry/{agent}/versions/1/publish")).status_code == 200
+        assert (
+            await client.post(f"/v1/registry/{agent}/versions/1/publish")
+        ).status_code == 200
         ok = await client.get(f"/v1/registry/{agent}/bundle")
         assert ok.status_code == 200
         assert ok.json()["dependencies"] == [] and ok.json()["root"]["version"] == 1
-        bad = await client.get(f"/v1/registry/{agent}/bundle", params={"version": "abc"})
+        bad = await client.get(
+            f"/v1/registry/{agent}/bundle", params={"version": "abc"}
+        )
         assert (bad.status_code, bad.json()["error"]) == (422, "validation_failed")
-        missing = await client.get(f"/v1/registry/{agent}/bundle", params={"version": 9})
+        missing = await client.get(
+            f"/v1/registry/{agent}/bundle", params={"version": 9}
+        )
         assert (missing.status_code, missing.json()["error"]) == (404, "not_found")

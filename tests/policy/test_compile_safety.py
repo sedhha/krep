@@ -29,12 +29,14 @@ def ends_with_node(literal: str) -> dict[str, Any]:
 def test_ac10_sql_injection_literal_stays_inside_the_string() -> None:
     literal = '"); DROP TABLE registry; --'
     compiled = compile_ast(cmp_node(["a"], literal))
-    assert compiled == 'exists($."token"."a"[*] ? (@ == "\\"); DROP TABLE registry; --"))'
+    assert (
+        compiled == 'exists($."token"."a"[*] ? (@ == "\\"); DROP TABLE registry; --"))'
+    )
     assert json.loads(compiled.split("@ == ", 1)[1][:-2]) == literal
 
 
 def test_ac10_key_with_quote_dot_quote_is_one_segment() -> None:
-    compiled = compile_ast(cmp_node(["a\".\"b"], "x"))
+    compiled = compile_ast(cmp_node(['a"."b'], "x"))
     assert compiled == 'exists($."token"."a\\".\\"b"[*] ? (@ == "x"))'
 
 

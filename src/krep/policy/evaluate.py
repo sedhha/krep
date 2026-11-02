@@ -30,7 +30,9 @@ async def evaluate(
     return bool(row and row[0])
 
 
-def _leaves(node: dict[str, Any], negated: bool = False) -> list[tuple[dict[str, Any], bool]]:
+def _leaves(
+    node: dict[str, Any], negated: bool = False
+) -> list[tuple[dict[str, Any], bool]]:
     op = node["op"]
     if op in ("and", "or"):
         return [leaf for arg in node["args"] for leaf in _leaves(arg, negated)]

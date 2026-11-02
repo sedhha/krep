@@ -43,7 +43,7 @@ def _compile(node: dict[str, Any]) -> str:
         return _exists(node, f"@ == {_value(node['value'])}")
     if op == "cmp":
         if node["cmp"] == "!=":
-            return f"!({_exists(node, f'@ == {_value(node['value'])}')})"
+            return f"!({_exists(node, f'@ == {_value(node["value"])}')})"
         return _exists(node, f"@ {node['cmp']} {_value(node['value'])}")
     if op == "in_list":
         alternatives = " || ".join(f"@ == {_value(v)}" for v in node["values"])

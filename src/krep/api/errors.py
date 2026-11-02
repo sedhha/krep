@@ -17,7 +17,8 @@ class ApiError(Exception):
 async def _api_error(_: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, ApiError)
     return JSONResponse(
-        {"error": exc.error, "message": exc.message, **exc.extra}, status_code=exc.status
+        {"error": exc.error, "message": exc.message, **exc.extra},
+        status_code=exc.status,
     )
 
 
@@ -25,13 +26,19 @@ async def _validation_error(_: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, RequestValidationError)
     errors: list[dict[str, str]] = [
         {
-            "field": ".".join(str(p) for p in e["loc"] if p not in ("body", "query", "path")),
+            "field": ".".join(
+                str(p) for p in e["loc"] if p not in ("body", "query", "path")
+            ),
             "message": e["msg"],
         }
         for e in exc.errors()
     ]
     return JSONResponse(
-        {"error": "validation_failed", "message": "request validation failed", "errors": errors},
+        {
+            "error": "validation_failed",
+            "message": "request validation failed",
+            "errors": errors,
+        },
         status_code=422,
     )
 

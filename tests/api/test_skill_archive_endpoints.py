@@ -40,7 +40,9 @@ def app_for(pool: Pool, tenant: uuid.UUID | None) -> FastAPI:
 
 
 def client_for(app: FastAPI) -> httpx.AsyncClient:
-    return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t")
+    return httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://t"
+    )
 
 
 @pytest.fixture
@@ -57,9 +59,15 @@ async def owner(pool: Pool, tenant: uuid.UUID) -> AsyncIterator[httpx.AsyncClien
 async def counts(pool: Pool, tenant: uuid.UUID) -> tuple[int, int]:
     async with pool.connection() as conn:
         async with conn.transaction():
-            await conn.execute("SELECT set_config('app.tenant_id', %s, true)", (str(tenant),))
-            files = await (await conn.execute("SELECT count(*) FROM skill_files")).fetchone()
-            skills = await (await conn.execute("SELECT count(*) FROM skills")).fetchone()
+            await conn.execute(
+                "SELECT set_config('app.tenant_id', %s, true)", (str(tenant),)
+            )
+            files = await (
+                await conn.execute("SELECT count(*) FROM skill_files")
+            ).fetchone()
+            skills = await (
+                await conn.execute("SELECT count(*) FROM skills")
+            ).fetchone()
     assert files is not None and skills is not None
     return files[0], skills[0]
 
@@ -123,7 +131,10 @@ async def test_same_zip_in_another_tenant_is_a_separate_file_row(
 ) -> None:
     other = uuid.uuid4()
     data = skill_zip()
-    async with client_for(app_for(pool, tenant)) as a, client_for(app_for(pool, other)) as b:
+    async with (
+        client_for(app_for(pool, tenant)) as a,
+        client_for(app_for(pool, other)) as b,
+    ):
         assert (await create_skill(a, data)).status_code == 201
         assert (await create_skill(b, data)).status_code == 201
     assert await counts(pool, tenant) == (1, 1)
@@ -191,7 +202,8 @@ async def test_replace_draft_is_atomic_when_upload_is_bad(
     old = skill_zip()
     rid = (await create_skill(owner, old)).json()["id"]
     r = await owner.put(
-        f"{BASE}/{rid}/versions/1", files={"archive": ("a.zip", b"nope", "application/zip")}
+        f"{BASE}/{rid}/versions/1",
+        files={"archive": ("a.zip", b"nope", "application/zip")},
     )
     assert r.status_code == 422
     dl = await owner.get(f"{BASE}/{rid}/versions/1/archive")
@@ -232,7 +244,9 @@ async def test_download_hidden_resource_is_404_not_403(
         assert (await a.post(f"{BASE}/{rid}/versions/1/publish")).status_code == 200
 
     async def stranger() -> Caller:
-        return Caller(tenant, "someone-else", {"token": {}, "principal": {}}, False, False)
+        return Caller(
+            tenant, "someone-else", {"token": {}, "principal": {}}, False, False
+        )
 
     app = app_for(pool, tenant)
     app.dependency_overrides[get_caller] = stranger
@@ -241,7 +255,9 @@ async def test_download_hidden_resource_is_404_not_403(
     assert r.status_code == 404
 
 
-async def test_download_other_tenants_version_is_404(pool: Pool, tenant: uuid.UUID) -> None:
+async def test_download_other_tenants_version_is_404(
+    pool: Pool, tenant: uuid.UUID
+) -> None:
     async with client_for(app_for(pool, tenant)) as a:
         rid = (await create_skill(a, skill_zip())).json()["id"]
     async with client_for(app_for(pool, uuid.uuid4())) as b:
@@ -261,7 +277,10 @@ async def test_failing_upload_logs_no_archive_content(
     caplog.set_level(logging.DEBUG)
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as zf:
-        zf.writestr("SENTINEL-DIR/SKILL.md", "---\nname: SENTINEL-NAME\ndescription: SENTINEL-DESC\n---\n")
+        zf.writestr(
+            "SENTINEL-DIR/SKILL.md",
+            "---\nname: SENTINEL-NAME\ndescription: SENTINEL-DESC\n---\n",
+        )
     r = await create_skill(owner, buf.getvalue())
     assert r.status_code == 422
     assert "SENTINEL" not in caplog.text

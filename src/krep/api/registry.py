@@ -86,7 +86,9 @@ async def _create_payload(request: Request) -> tuple[Any, bytes | None]:
 
 
 @router.post("", status_code=201)
-async def create_resource(request: Request, caller: Writer, conn: Conn) -> dict[str, Any]:
+async def create_resource(
+    request: Request, caller: Writer, conn: Conn
+) -> dict[str, Any]:
     payload, archive = await _create_payload(request)
     try:
         body = CreateIn.model_validate(payload)
@@ -113,7 +115,9 @@ async def list_resources(
 
 
 @router.get("/{resource_id}")
-async def get_resource(resource_id: UUID, caller: Authenticated, conn: Conn) -> dict[str, Any]:
+async def get_resource(
+    resource_id: UUID, caller: Authenticated, conn: Conn
+) -> dict[str, Any]:
     view = await resources.get_visible(conn, caller, resource_id)
     if view is None:
         raise ApiError(404, "not_found", "resource not found")
@@ -137,12 +141,16 @@ async def patch_resource(
 
 
 @router.post("/{resource_id}/archive")
-async def archive_resource(resource_id: UUID, caller: Writer, conn: Conn) -> dict[str, Any]:
+async def archive_resource(
+    resource_id: UUID, caller: Writer, conn: Conn
+) -> dict[str, Any]:
     return await resources.set_archived(conn, caller, resource_id, True)
 
 
 @router.post("/{resource_id}/unarchive")
-async def unarchive_resource(resource_id: UUID, caller: Writer, conn: Conn) -> dict[str, Any]:
+async def unarchive_resource(
+    resource_id: UUID, caller: Writer, conn: Conn
+) -> dict[str, Any]:
     return await resources.set_archived(conn, caller, resource_id, False)
 
 

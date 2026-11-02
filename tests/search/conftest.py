@@ -6,7 +6,6 @@ import psycopg
 import pytest
 import pytest_asyncio
 
-from krep.api.deps import get_caller as _get_caller  # noqa: F401
 from krep.identity.resolve import Caller
 from krep.policy.parser import parse
 from krep.policy.store import write_policy
@@ -21,7 +20,9 @@ def tenant() -> uuid.UUID:
 async def conn(
     app_conn: psycopg.AsyncConnection, tenant: uuid.UUID
 ) -> AsyncIterator[psycopg.AsyncConnection]:
-    await app_conn.execute("SELECT set_config('app.tenant_id', %s, true)", (str(tenant),))
+    await app_conn.execute(
+        "SELECT set_config('app.tenant_id', %s, true)", (str(tenant),)
+    )
     yield app_conn
 
 
@@ -49,8 +50,19 @@ async def add_resource(
         "INSERT INTO registry (tenant_id, type, slug, name, description, tags, visibility, "
         "policy_id, status, created_by, updated_by) "
         "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id",
-        (tenant, type, slug, name, description, tags or [], visibility, policy_id, status,
-         created_by, created_by),
+        (
+            tenant,
+            type,
+            slug,
+            name,
+            description,
+            tags or [],
+            visibility,
+            policy_id,
+            status,
+            created_by,
+            created_by,
+        ),
     )
     row = await cur.fetchone()
     assert row is not None

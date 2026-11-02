@@ -47,12 +47,24 @@ async def satisfied(
         ),
         ({"token": {"nul": None}}, "token.nul == null", True),
         (
-            {"token": {"department": "billing", "roles": ["manager"], "groups": ["contractors"]}},
+            {
+                "token": {
+                    "department": "billing",
+                    "roles": ["manager"],
+                    "groups": ["contractors"],
+                }
+            },
             RULE_12,
             False,
         ),
         (
-            {"token": {"department": "billing", "roles": ["manager"], "groups": ["eng"]}},
+            {
+                "token": {
+                    "department": "billing",
+                    "roles": ["manager"],
+                    "groups": ["eng"],
+                }
+            },
             RULE_12,
             True,
         ),
@@ -106,7 +118,10 @@ async def test_ac9_row09_tenant_variable_uses_resolved_tenant(
     [
         ({"department": "billing", "roles": ["manager"], "groups": ["eng"]}, True),
         ({"department": "billing", "roles": "support-lead"}, True),
-        ({"department": "billing", "roles": ["manager"], "groups": ["contractors"]}, False),
+        (
+            {"department": "billing", "roles": ["manager"], "groups": ["contractors"]},
+            False,
+        ),
         ({"department": "sales", "roles": ["manager"]}, False),
         ({"roles": ["manager"]}, False),
     ],
@@ -137,7 +152,10 @@ async def test_ac8_evaluation_error_counts_as_not_satisfied(
 async def test_ac8_non_boolean_result_counts_as_not_satisfied(
     app_conn: psycopg.AsyncConnection,
 ) -> None:
-    assert await evaluate(app_conn, '$."token"."a"."b"', {"token": {"a": 1}}, TENANT) is False
+    assert (
+        await evaluate(app_conn, '$."token"."a"."b"', {"token": {"a": 1}}, TENANT)
+        is False
+    )
 
 
 async def test_ac10_injection_literal_evaluates_and_registry_survives(
@@ -160,7 +178,8 @@ async def test_ac10_injection_key_with_quote_and_dot(
 
 
 async def test_empty_roots_do_not_match(app_conn: psycopg.AsyncConnection) -> None:
-    for doc in ({}, {"token": {}, "principal": {}}):
+    docs: list[dict[str, Any]] = [{}, {"token": {}, "principal": {}}]
+    for doc in docs:
         assert await satisfied(app_conn, 'token.a == "x"', doc) is False
         assert await satisfied(app_conn, '!("x" in principal.roles)', doc) is True
         assert await satisfied(app_conn, "has(token.a)", doc) is False

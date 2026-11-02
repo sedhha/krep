@@ -14,7 +14,9 @@ def reset(name: str, tenant: str, rule: str) -> int:
     return main(["policy", "reset", name, "--tenant", tenant, "--rule", rule])
 
 
-def state(query: Callable[..., list[tuple[Any, ...]]], tenant: str, name: str) -> tuple[Any, ...]:
+def state(
+    query: Callable[..., list[tuple[Any, ...]]], tenant: str, name: str
+) -> tuple[Any, ...]:
     return query(
         "SELECT rev, source, compiled_path::text, reserved FROM access_policies "
         "WHERE tenant_id = %s AND name = %s",
@@ -64,7 +66,9 @@ def test_reset_only_accepts_reserved_names(
         reset("my-policy", tenant, NEW_RULE)
     assert exc.value.code != 0
     assert "registry-admins" in capsys.readouterr().err
-    assert query("SELECT count(*) FROM access_policies WHERE tenant_id = %s", tenant) == [(2,)]
+    assert query(
+        "SELECT count(*) FROM access_policies WHERE tenant_id = %s", tenant
+    ) == [(2,)]
 
 
 def test_reset_trims_history_to_max_policy_history(
@@ -74,9 +78,12 @@ def test_reset_trims_history_to_max_policy_history(
     for i in range(24):
         assert reset("registry-admins", tenant, f'token.groups == "g{i}"') == 0
     assert state(query, tenant, "registry-admins")[0] == 25
-    revs = [r[0] for r in query(
-        "SELECT h.rev FROM access_policy_history h JOIN access_policies p ON p.id = h.policy_id "
-        "WHERE p.tenant_id = %s AND p.name = 'registry-admins' ORDER BY h.rev",
-        tenant,
-    )]
+    revs = [
+        r[0]
+        for r in query(
+            "SELECT h.rev FROM access_policy_history h JOIN access_policies p ON p.id = h.policy_id "
+            "WHERE p.tenant_id = %s AND p.name = 'registry-admins' ORDER BY h.rev",
+            tenant,
+        )
+    ]
     assert revs == list(range(6, 26))

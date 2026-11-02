@@ -26,7 +26,9 @@ async def publish(
 ) -> Row:
     resource = await lock_for_edit(conn, caller, resource_id)
     if resource["status"] == "archived":
-        raise ApiError(409, "resource_archived", "unarchive the resource before publishing")
+        raise ApiError(
+            409, "resource_archived", "unarchive the resource before publishing"
+        )
     version = await require_version(conn, resource_id, n)
     if version["status"] != "draft":
         raise ApiError(409, "version_immutable", f"v{n} is already published")
@@ -61,7 +63,8 @@ async def publish(
         )
     else:
         cur = await conn.execute(
-            "SELECT version FROM registry_versions WHERE id = %s", (resource["current_version_id"],)
+            "SELECT version FROM registry_versions WHERE id = %s",
+            (resource["current_version_id"],),
         )
         current = (await cur.fetchone() or (n,))[0]
     return {
@@ -79,7 +82,9 @@ async def publish(
     }
 
 
-async def set_current(conn: AsyncConnection, caller: Caller, resource_id: UUID, n: int) -> Row:
+async def set_current(
+    conn: AsyncConnection, caller: Caller, resource_id: UUID, n: int
+) -> Row:
     resource = await lock_for_edit(conn, caller, resource_id)
     version = await require_version(conn, resource_id, n)
     if version["status"] != "published":

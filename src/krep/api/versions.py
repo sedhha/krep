@@ -36,12 +36,17 @@ class CurrentIn(BaseModel):
 
 
 def _invalid(errors: list[dict[str, str]]) -> ApiError:
-    return ApiError(422, "validation_failed", "request validation failed", errors=errors)
+    return ApiError(
+        422, "validation_failed", "request validation failed", errors=errors
+    )
 
 
 def _from_validation_error(exc: ValidationError) -> ApiError:
     return _invalid(
-        [{"field": ".".join(str(p) for p in e["loc"]), "message": e["msg"]} for e in exc.errors()]
+        [
+            {"field": ".".join(str(p) for p in e["loc"]), "message": e["msg"]}
+            for e in exc.errors()
+        ]
     )
 
 
@@ -56,7 +61,9 @@ async def _json_body(request: Request) -> Any:
 
 
 @router.get("/versions")
-async def list_versions(resource_id: UUID, caller: Authenticated, conn: Conn) -> dict[str, Any]:
+async def list_versions(
+    resource_id: UUID, caller: Authenticated, conn: Conn
+) -> dict[str, Any]:
     return {"items": await versions.list_versions(conn, caller, resource_id)}
 
 
@@ -72,16 +79,22 @@ async def create_draft(
         body = DraftIn.model_validate(await _json_body(request))
     except ValidationError as exc:
         raise _from_validation_error(exc) from None
-    return await versions.create_draft(conn, caller, resource_id, from_version=body.from_version)
+    return await versions.create_draft(
+        conn, caller, resource_id, from_version=body.from_version
+    )
 
 
 @router.get("/versions/{n}")
-async def get_version(resource_id: UUID, n: int, caller: Authenticated, conn: Conn) -> dict[str, Any]:
+async def get_version(
+    resource_id: UUID, n: int, caller: Authenticated, conn: Conn
+) -> dict[str, Any]:
     return await versions.get_version(conn, caller, resource_id, n)
 
 
 @router.get("/versions/{n}/archive")
-async def get_archive(resource_id: UUID, n: int, caller: Authenticated, conn: Conn) -> Response:
+async def get_archive(
+    resource_id: UUID, n: int, caller: Authenticated, conn: Conn
+) -> Response:
     data, sha = await versions.get_archive(conn, caller, resource_id, n)
     return Response(
         data,
@@ -106,7 +119,9 @@ async def replace_draft(
 
 
 @router.delete("/versions/{n}", status_code=204)
-async def delete_version(resource_id: UUID, n: int, caller: Writer, conn: Conn) -> Response:
+async def delete_version(
+    resource_id: UUID, n: int, caller: Writer, conn: Conn
+) -> Response:
     await versions.delete_version(conn, caller, resource_id, n)
     return Response(status_code=204)
 
@@ -116,7 +131,9 @@ async def publish_version(
     resource_id: UUID, n: int, caller: Writer, conn: Conn, body: PublishIn | None = None
 ) -> dict[str, Any]:
     make_current = body.make_current if body else True
-    return await publish.publish(conn, caller, resource_id, n, make_current=make_current)
+    return await publish.publish(
+        conn, caller, resource_id, n, make_current=make_current
+    )
 
 
 @router.post("/current")

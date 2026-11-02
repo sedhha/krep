@@ -45,7 +45,12 @@ async def test_publish_sets_version_and_resource_state(
     fetched = await cur.fetchone()
     assert fetched is not None
     status, has_ts, digest, resource_status, is_current = fetched
-    assert (status, has_ts, resource_status, is_current) == ("published", True, "published", True)
+    assert (status, has_ts, resource_status, is_current) == (
+        "published",
+        True,
+        "published",
+        True,
+    )
     full_spec: dict[str, Any] = {
         "model": "claude-sonnet-5-5",
         "model_config": {},
@@ -69,7 +74,15 @@ async def test_publish_hash_ignores_omitted_defaults(
         await create_resource(
             conn,
             caller,
-            agent_body("agent-b", spec={"model": "claude-sonnet-5-5", "system_prompt": "You help.", "model_config": {}, "tool_refs": []}),
+            agent_body(
+                "agent-b",
+                spec={
+                    "model": "claude-sonnet-5-5",
+                    "system_prompt": "You help.",
+                    "model_config": {},
+                    "tool_refs": [],
+                },
+            ),
         )
     )["id"]
     one = await publish(conn, caller, a, 1)
@@ -82,9 +95,13 @@ async def test_publish_skill_hash_derives_from_content_sha256(
 ) -> None:
     caller = caller_for(tenant)
     rid = await new_skill(conn, caller)
-    sha = await scalar(conn, "SELECT content_sha256 FROM skills WHERE registry_id = %s", rid)
+    sha = await scalar(
+        conn, "SELECT content_sha256 FROM skills WHERE registry_id = %s", rid
+    )
     out = await publish(conn, caller, rid, 1)
-    assert out["version"]["content_hash"] == content_hash("skill", {"content_sha256": sha})
+    assert out["version"]["content_hash"] == content_hash(
+        "skill", {"content_sha256": sha}
+    )
 
 
 async def test_publish_non_draft_is_rejected(
@@ -132,7 +149,10 @@ async def test_first_publish_with_make_current_false_still_becomes_current(
     rid = await new_agent(conn, caller)
     out = await publish(conn, caller, rid, 1, make_current=False)
     assert out["current_version"] == 1
-    assert await scalar(conn, "SELECT status FROM registry WHERE id = %s", rid) == "published"
+    assert (
+        await scalar(conn, "SELECT status FROM registry WHERE id = %s", rid)
+        == "published"
+    )
 
 
 async def test_publishing_identical_spec_reports_no_changes_since_previous(
@@ -159,9 +179,19 @@ async def test_publish_of_a_draft_whose_spec_went_invalid_is_422_and_changes_not
     with pytest.raises(ApiError) as exc:
         await publish(conn, caller, rid, 1)
     assert exc.value.status == 422
-    assert {"field": "spec.model", "message": "required non-empty string"} in exc.value.extra["errors"]
-    assert await scalar(conn, "SELECT status FROM registry_versions WHERE registry_id = %s", rid) == "draft"
-    assert await scalar(conn, "SELECT status FROM registry WHERE id = %s", rid) == "draft"
+    assert {
+        "field": "spec.model",
+        "message": "required non-empty string",
+    } in exc.value.extra["errors"]
+    assert (
+        await scalar(
+            conn, "SELECT status FROM registry_versions WHERE registry_id = %s", rid
+        )
+        == "draft"
+    )
+    assert (
+        await scalar(conn, "SELECT status FROM registry WHERE id = %s", rid) == "draft"
+    )
 
 
 async def test_publish_on_archived_resource_is_rejected(
@@ -175,7 +205,10 @@ async def test_publish_on_archived_resource_is_rejected(
     with pytest.raises(ApiError) as exc:
         await publish(conn, caller, rid, 2)
     assert (exc.value.status, exc.value.error) == (409, "resource_archived")
-    assert await scalar(conn, "SELECT status FROM registry WHERE id = %s", rid) == "archived"
+    assert (
+        await scalar(conn, "SELECT status FROM registry WHERE id = %s", rid)
+        == "archived"
+    )
 
 
 async def test_publish_calls_freeze_dependencies_with_the_version_id(
@@ -190,7 +223,11 @@ async def test_publish_calls_freeze_dependencies_with_the_version_id(
     caller = caller_for(tenant)
     rid = await new_agent(conn, caller)
     await publish(conn, caller, rid, 1)
-    assert seen == [await scalar(conn, "SELECT id FROM registry_versions WHERE registry_id = %s", rid)]
+    assert seen == [
+        await scalar(
+            conn, "SELECT id FROM registry_versions WHERE registry_id = %s", rid
+        )
+    ]
 
 
 async def test_publish_by_non_owner_is_403_visible_or_404_hidden(
@@ -202,7 +239,9 @@ async def test_publish_by_non_owner_is_403_visible_or_404_hidden(
         await publish(conn, other, rid, 1)
     assert exc.value.status == 404
     await publish(conn, owner, rid, 1)
-    await conn.execute("UPDATE registry SET visibility = 'tenant' WHERE id = %s", (rid,))
+    await conn.execute(
+        "UPDATE registry SET visibility = 'tenant' WHERE id = %s", (rid,)
+    )
     await create_draft(conn, owner, rid)
     with pytest.raises(ApiError) as exc2:
         await publish(conn, other, rid, 2)
@@ -278,7 +317,12 @@ async def test_ac18_deleting_the_current_version_is_rejected(
     with pytest.raises(ApiError) as exc:
         await delete_version(conn, caller, rid, 1)
     assert (exc.value.status, exc.value.error) == (409, "version_is_current")
-    assert await scalar(conn, "SELECT count(*) FROM registry_versions WHERE registry_id = %s", rid) == 1
+    assert (
+        await scalar(
+            conn, "SELECT count(*) FROM registry_versions WHERE registry_id = %s", rid
+        )
+        == 1
+    )
 
 
 async def test_edit_racing_a_publish_gets_version_immutable(
@@ -302,10 +346,17 @@ async def test_edit_racing_a_publish_gets_version_immutable(
     error = await asyncio.wait_for(task, 5)
     assert error.error == "version_immutable"
     async with tenant_transaction(pool, tenant) as check:
-        assert await scalar(check, "SELECT system_prompt FROM agents WHERE registry_id = %s", rid) == "You help."
+        assert (
+            await scalar(
+                check, "SELECT system_prompt FROM agents WHERE registry_id = %s", rid
+            )
+            == "You help."
+        )
 
 
-async def test_api_publish_and_current(make_client: MakeClient, tenant: uuid.UUID) -> None:
+async def test_api_publish_and_current(
+    make_client: MakeClient, tenant: uuid.UUID
+) -> None:
     body = {k: v for k, v in agent_body().items()}
     async with make_client(tenant) as c:
         rid = (await c.post(BASE, json=body)).json()["id"]
@@ -314,7 +365,9 @@ async def test_api_publish_and_current(make_client: MakeClient, tenant: uuid.UUI
         assert r.json()["version"]["status"] == "published"
         assert r.json()["current_version"] == 1
         await c.post(f"{BASE}/{rid}/versions")
-        r = await c.post(f"{BASE}/{rid}/versions/2/publish", json={"make_current": False})
+        r = await c.post(
+            f"{BASE}/{rid}/versions/2/publish", json={"make_current": False}
+        )
         assert r.status_code == 200
         assert r.json()["current_version"] == 1
         r = await c.post(f"{BASE}/{rid}/current", json={"version": 2})
@@ -339,7 +392,9 @@ async def test_api_skill_publish_and_archive_survive(
         assert (await c.post(f"{BASE}/{rid}/versions/1/publish")).status_code == 200
         r = await c.put(
             f"{BASE}/{rid}/versions/1",
-            files={"archive": ("a.zip", skill_zip("refund-flow", "z"), "application/zip")},
+            files={
+                "archive": ("a.zip", skill_zip("refund-flow", "z"), "application/zip")
+            },
         )
         assert r.status_code == 409
         assert r.json()["error"] == "version_immutable"

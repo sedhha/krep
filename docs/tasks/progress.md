@@ -21,7 +21,7 @@ Status: `todo` | `in-progress` | `in-review` | `done` (with commit hash)
 | 15 | [Links: rules, acceptance, cycles, freezing](T15-links.md) | done | 44505e1 |
 | 16 | [Bundle resolution](T16-bundle.md) | done | 80d1fd8 |
 | 17 | [Uploads and skill resources](T17-uploads.md) | done | 5528f85 |
-| 18 | [Benchmark, hardening, end-to-end walkthrough](T18-benchmark-hardening.md) | todo | |
+| 18 | [Benchmark, hardening, end-to-end walkthrough](T18-benchmark-hardening.md) | in-review | |
 
 ## Notes
 

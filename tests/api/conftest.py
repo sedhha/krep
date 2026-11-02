@@ -24,17 +24,23 @@ MakeClient = Callable[..., httpx.AsyncClient]
 
 @pytest_asyncio.fixture
 async def pool(migrated_db: str) -> AsyncIterator[Pool]:
-    settings = Settings(database_url=role_url("krep_app", migrated_db), migration_database_url="")
+    settings = Settings(
+        database_url=role_url("krep_app", migrated_db), migration_database_url=""
+    )
     async with await open_pool(settings, min_size=1, max_size=4) as pool:
         yield pool
 
 
 @pytest_asyncio.fixture
-async def owner_exec(migrated_db: str, tenant_id: uuid.UUID) -> AsyncIterator[OwnerExec]:
+async def owner_exec(
+    migrated_db: str, tenant_id: uuid.UUID
+) -> AsyncIterator[OwnerExec]:
     async with await AsyncConnection.connect(
         role_url("krep_owner", migrated_db), autocommit=True
     ) as conn:
-        await conn.execute("SELECT set_config('app.tenant_id', %s, false)", (str(tenant_id),))
+        await conn.execute(
+            "SELECT set_config('app.tenant_id', %s, false)", (str(tenant_id),)
+        )
 
         async def run(query: LiteralString, params: tuple[Any, ...] = ()) -> None:
             await conn.execute(query, params)
@@ -49,7 +55,9 @@ def tenant_id() -> uuid.UUID:
 
 @pytest.fixture
 def make_client(pool: Pool) -> MakeClient:
-    def make(tenant: uuid.UUID, admin: bool = True, user: str = "u1") -> httpx.AsyncClient:
+    def make(
+        tenant: uuid.UUID, admin: bool = True, user: str = "u1"
+    ) -> httpx.AsyncClient:
         app = FastAPI()
         app.state.pool = pool
         install_error_handlers(app)

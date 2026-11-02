@@ -79,8 +79,16 @@ async def write_policy(
             "VALUES (%s, %s, %s, %s, %s, %s::jsonpath, %s, %s, %s, %s) "
             f"RETURNING {_COLUMNS}",
             (
-                tenant_id, name, description or "", Jsonb(ast), source, compiled,
-                COMPILER_VERSION, reserved, user, user,
+                tenant_id,
+                name,
+                description or "",
+                Jsonb(ast),
+                source,
+                compiled,
+                COMPILER_VERSION,
+                reserved,
+                user,
+                user,
             ),
         )
     else:
@@ -92,7 +100,15 @@ async def write_policy(
             "compiler_version = %s, rev = rev + 1, updated_by = %s, updated_at = now(), "
             "description = coalesce(%s, description) "
             f"WHERE id = %s RETURNING {_COLUMNS}",
-            (Jsonb(ast), source, compiled, COMPILER_VERSION, user, description, policy_id),
+            (
+                Jsonb(ast),
+                source,
+                compiled,
+                COMPILER_VERSION,
+                user,
+                description,
+                policy_id,
+            ),
         )
     row = PolicyRow(*await cur.fetchone())  # type: ignore[misc]
     await conn.execute(

@@ -40,7 +40,14 @@ async def search(
     tag_list = [t for t in (part.strip() for part in (tags or "").split(",")) if t]
     groups = await synonyms.groups_for(conn, caller.tenant_id)
     hits = await registry_search(
-        conn, caller, q=q, type=type, tags=tag_list, limit=limit, offset=offset, groups=groups
+        conn,
+        caller,
+        q=q,
+        type=type,
+        tags=tag_list,
+        limit=limit,
+        offset=offset,
+        groups=groups,
     )
     if not hits and offset == 0 and q.strip():
         SEARCH_ZERO_RESULTS.labels(tenant=str(caller.tenant_id)).inc()

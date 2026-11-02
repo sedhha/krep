@@ -17,7 +17,9 @@ CACHE_TTL_SECONDS = 60
 
 _TERM = re.compile(r"[^\W_]+( [^\W_]+)*")
 
-_ROWS = "SELECT id, terms FROM search_synonyms WHERE tenant_id = %s ORDER BY created_at, id"
+_ROWS = (
+    "SELECT id, terms FROM search_synonyms WHERE tenant_id = %s ORDER BY created_at, id"
+)
 _SAME_SET = (
     "SELECT 1 FROM search_synonyms "
     "WHERE tenant_id = %(tenant)s AND terms @> %(terms)s AND terms <@ %(terms)s "
@@ -27,7 +29,9 @@ _SAME_SET = (
 
 class SynonymCache:
     def __init__(
-        self, ttl: float = CACHE_TTL_SECONDS, clock: Callable[[], float] = time.monotonic
+        self,
+        ttl: float = CACHE_TTL_SECONDS,
+        clock: Callable[[], float] = time.monotonic,
     ) -> None:
         self._ttl = ttl
         self._clock = clock
@@ -88,13 +92,20 @@ async def list_groups(conn: AsyncConnection, tenant_id: UUID) -> list[dict[str, 
 async def _reject_duplicate(
     conn: AsyncConnection, tenant_id: UUID, terms: list[str], self_id: UUID | None
 ) -> None:
-    cur = await conn.execute(_SAME_SET, {"tenant": tenant_id, "terms": terms, "self": self_id})
+    cur = await conn.execute(
+        _SAME_SET, {"tenant": tenant_id, "terms": terms, "self": self_id}
+    )
     if await cur.fetchone() is not None:
-        raise ApiError(409, "synonym_group_exists", "a group with these terms already exists")
+        raise ApiError(
+            409, "synonym_group_exists", "a group with these terms already exists"
+        )
 
 
 async def create_group(
-    conn: AsyncConnection, caller: Caller, terms: list[str], cache: SynonymCache | None = None
+    conn: AsyncConnection,
+    caller: Caller,
+    terms: list[str],
+    cache: SynonymCache | None = None,
 ) -> dict[str, Any]:
     cleaned = normalise_terms(terms)
     await _reject_duplicate(conn, caller.tenant_id, cleaned, None)
@@ -139,7 +150,10 @@ async def update_group(
 
 
 async def delete_group(
-    conn: AsyncConnection, tenant_id: UUID, group_id: UUID, cache: SynonymCache | None = None
+    conn: AsyncConnection,
+    tenant_id: UUID,
+    group_id: UUID,
+    cache: SynonymCache | None = None,
 ) -> None:
     cur = await conn.execute(
         "DELETE FROM search_synonyms WHERE tenant_id = %s AND id = %s RETURNING id",

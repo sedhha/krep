@@ -20,7 +20,9 @@ def bearer(keys: Keys, row: dict[str, Any], **overrides: Any) -> dict[str, str]:
     return {"authorization": f"Bearer {token}"}
 
 
-async def assert_rejected(pool: Pool, headers: dict[str, str], status: int = 401) -> ApiError:
+async def assert_rejected(
+    pool: Pool, headers: dict[str, str], status: int = 401
+) -> ApiError:
     with pytest.raises(ApiError) as exc:
         await resolve_caller(pool, headers)
     assert exc.value.status == status
@@ -42,7 +44,9 @@ async def test_ac2_tenant_claim_path_issuer(
     pool: Pool, keys: Keys, jwks: dict[str, Any], add_issuer: AddIssuer
 ) -> None:
     tenant = uuid.uuid4()
-    row = await add_issuer(tenant_id=None, tenant_claim_path=["https://x.example", "tenant"])
+    row = await add_issuer(
+        tenant_id=None, tenant_claim_path=["https://x.example", "tenant"]
+    )
     headers = bearer(keys, row, **{"https://x.example": {"tenant": str(tenant)}})
     caller = await resolve_caller(pool, headers)
     assert caller.tenant_id == tenant
@@ -109,7 +113,9 @@ async def test_token_without_sub_is_rejected(
     pool: Pool, keys: Keys, jwks: dict[str, Any], add_issuer: AddIssuer
 ) -> None:
     row = await add_issuer()
-    token = keys.sign({k: v for k, v in claims(iss=row["issuer"]).items() if k != "sub"})
+    token = keys.sign(
+        {k: v for k, v in claims(iss=row["issuer"]).items() if k != "sub"}
+    )
     await assert_rejected(pool, {"authorization": f"Bearer {token}"})
 
 
@@ -126,15 +132,24 @@ async def test_machine_token_without_sub_and_principal_is_rejected(
     pool: Pool, keys: Keys, jwks: dict[str, Any], add_issuer: AddIssuer
 ) -> None:
     row = await add_issuer(allow_principal=True)
-    token = keys.sign({k: v for k, v in claims(iss=row["issuer"]).items() if k != "sub"})
+    token = keys.sign(
+        {k: v for k, v in claims(iss=row["issuer"]).items() if k != "sub"}
+    )
     await assert_rejected(pool, {"authorization": f"Bearer {token}"})
 
 
 @pytest.mark.parametrize(
     "headers",
-    [{}, {"authorization": "Basic abc"}, {"authorization": "Bearer"}, {"authorization": "Bearer "}],
+    [
+        {},
+        {"authorization": "Basic abc"},
+        {"authorization": "Bearer"},
+        {"authorization": "Bearer "},
+    ],
 )
-async def test_missing_or_malformed_credentials(pool: Pool, headers: dict[str, str]) -> None:
+async def test_missing_or_malformed_credentials(
+    pool: Pool, headers: dict[str, str]
+) -> None:
     err = await assert_rejected(pool, headers)
     assert err.error == "unauthenticated"
 
@@ -169,10 +184,14 @@ async def test_ac3_principal_honored_for_machine_issuer(
     assert caller.doc["token"]["sub"] == "client-abc"
 
 
-async def test_ac3_principal_honored_for_api_key(pool: Pool, add_api_key: AddKey) -> None:
+async def test_ac3_principal_honored_for_api_key(
+    pool: Pool, add_api_key: AddKey
+) -> None:
     key, _, _ = await add_api_key(allow_principal=True)
     principal = {"id": "user-9", "department": "billing"}
-    caller = await resolve_caller(pool, {"x-api-key": key, "x-principal": b64url(principal)})
+    caller = await resolve_caller(
+        pool, {"x-api-key": key, "x-principal": b64url(principal)}
+    )
     assert caller.user_id == "user-9"
     assert caller.doc["principal"] == principal
 
@@ -181,7 +200,10 @@ async def test_ac3_principal_ignored_for_user_token(
     pool: Pool, keys: Keys, jwks: dict[str, Any], add_issuer: AddIssuer
 ) -> None:
     row = await add_issuer()
-    headers = {**bearer(keys, row), "x-principal": b64url({"id": "forged", "roles": ["admin"]})}
+    headers = {
+        **bearer(keys, row),
+        "x-principal": b64url({"id": "forged", "roles": ["admin"]}),
+    }
     caller = await resolve_caller(pool, headers)
     assert caller.user_id == "u42"
     assert caller.doc["principal"] == {}
@@ -199,7 +221,9 @@ async def test_principal_ignored_for_api_key_without_allow_principal(
     pool: Pool, add_api_key: AddKey
 ) -> None:
     key, key_id, _ = await add_api_key(allow_principal=False)
-    caller = await resolve_caller(pool, {"x-api-key": key, "x-principal": b64url({"id": "x"})})
+    caller = await resolve_caller(
+        pool, {"x-api-key": key, "x-principal": b64url({"id": "x"})}
+    )
     assert caller.user_id == f"apikey:{key_id}"
     assert caller.doc["principal"] == {}
 
@@ -214,7 +238,9 @@ async def test_ac3_principal_without_id_is_400(pool: Pool, add_api_key: AddKey) 
 
 async def test_invalid_base64_principal_is_400(pool: Pool, add_api_key: AddKey) -> None:
     key, _, _ = await add_api_key(allow_principal=True)
-    err = await assert_rejected(pool, {"x-api-key": key, "x-principal": "!!!"}, status=400)
+    err = await assert_rejected(
+        pool, {"x-api-key": key, "x-principal": "!!!"}, status=400
+    )
     assert err.error == "principal_invalid"
 
 

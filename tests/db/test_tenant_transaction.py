@@ -21,7 +21,9 @@ async def pool(migrated_db: str) -> AsyncIterator[AsyncConnectionPool[AsyncConne
         yield pool
 
 
-async def add_policy(pool: AsyncConnectionPool[AsyncConnection], tenant: uuid.UUID, name: str) -> None:
+async def add_policy(
+    pool: AsyncConnectionPool[AsyncConnection], tenant: uuid.UUID, name: str
+) -> None:
     async with tenant_transaction(pool, tenant) as conn:
         await conn.execute(
             "INSERT INTO access_policies (tenant_id, name, ast, source, compiled_path, "
@@ -31,7 +33,9 @@ async def add_policy(pool: AsyncConnectionPool[AsyncConnection], tenant: uuid.UU
         )
 
 
-async def visible_names(pool: AsyncConnectionPool[AsyncConnection], tenant: uuid.UUID) -> list[str]:
+async def visible_names(
+    pool: AsyncConnectionPool[AsyncConnection], tenant: uuid.UUID
+) -> list[str]:
     async with tenant_transaction(pool, tenant) as conn:
         cur = await conn.execute("SELECT name FROM access_policies ORDER BY name")
         return [row[0] for row in await cur.fetchall()]

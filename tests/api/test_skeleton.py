@@ -38,14 +38,20 @@ def build_app() -> FastAPI:
 
 
 def client(app: FastAPI) -> httpx.AsyncClient:
-    return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t")
+    return httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://t"
+    )
 
 
 async def test_api_error_renders_documented_shape() -> None:
     async with client(build_app()) as c:
         r = await c.get("/boom")
     assert r.status_code == 409
-    assert r.json() == {"error": "slug_taken", "message": "slug already exists", "slug": "x"}
+    assert r.json() == {
+        "error": "slug_taken",
+        "message": "slug already exists",
+        "slug": "x",
+    }
 
 
 async def test_validation_error_renders_errors_list() -> None:
@@ -65,7 +71,10 @@ async def test_request_log_has_five_fields_and_no_secrets(
     async with client(build_app()) as c:
         await c.get(
             "/who/abc",
-            headers={"Authorization": "Bearer SENTINEL-TOKEN", "X-Claim": "SENTINEL-CLAIM"},
+            headers={
+                "Authorization": "Bearer SENTINEL-TOKEN",
+                "X-Claim": "SENTINEL-CLAIM",
+            },
         )
     records = [r for r in caplog.records if r.name == "krep.request"]
     assert len(records) == 1

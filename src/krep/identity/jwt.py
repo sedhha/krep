@@ -8,7 +8,17 @@ import jwt
 
 from krep.api.errors import ApiError
 
-ALGORITHMS = ["RS256", "RS384", "RS512", "PS256", "PS384", "PS512", "ES256", "ES384", "ES512"]
+ALGORITHMS = [
+    "RS256",
+    "RS384",
+    "RS512",
+    "PS256",
+    "PS384",
+    "PS512",
+    "ES256",
+    "ES384",
+    "ES512",
+]
 JWKS_TTL_SECONDS = 600.0
 MIN_REFETCH_SECONDS = 15.0
 FETCH_TIMEOUT_SECONDS = 5.0
@@ -32,7 +42,9 @@ def _unauthenticated() -> ApiError:
 
 
 async def fetch_jwks(uri: str) -> list[dict[str, Any]]:
-    async with httpx.AsyncClient(timeout=FETCH_TIMEOUT_SECONDS, follow_redirects=False) as client:
+    async with httpx.AsyncClient(
+        timeout=FETCH_TIMEOUT_SECONDS, follow_redirects=False
+    ) as client:
         response = await client.get(uri)
         response.raise_for_status()
         return response.json()["keys"]

@@ -38,10 +38,14 @@ def not_found() -> ApiError:
     return ApiError(404, "not_found", "resource not found")
 
 
-async def fetch_row(conn: AsyncConnection, resource_id: UUID, lock: bool = False) -> Row | None:
+async def fetch_row(
+    conn: AsyncConnection, resource_id: UUID, lock: bool = False
+) -> Row | None:
     suffix = " FOR UPDATE" if lock else ""
     async with conn.cursor(row_factory=dict_row) as cur:
-        await cur.execute(f"SELECT {COLUMNS} FROM registry WHERE id = %s{suffix}", (resource_id,))
+        await cur.execute(
+            f"SELECT {COLUMNS} FROM registry WHERE id = %s{suffix}", (resource_id,)
+        )
         return await cur.fetchone()
 
 
@@ -53,17 +57,23 @@ async def lock_resource(conn: AsyncConnection, resource_id: UUID) -> Row:
 
 
 async def can_edit(caller: Caller, row: Row) -> bool:
-    return caller.can_admin or (caller.can_write and row["created_by"] == caller.user_id)
+    return caller.can_admin or (
+        caller.can_write and row["created_by"] == caller.user_id
+    )
 
 
-async def _policy_satisfied(conn: AsyncConnection, caller: Caller, policy_id: UUID | None) -> bool:
+async def _policy_satisfied(
+    conn: AsyncConnection, caller: Caller, policy_id: UUID | None
+) -> bool:
     if policy_id is None:
         return False
     cur = await conn.execute(
         "SELECT compiled_path::text FROM access_policies WHERE id = %s", (policy_id,)
     )
     row = await cur.fetchone()
-    return row is not None and await evaluate(conn, row[0], caller.doc, caller.tenant_id)
+    return row is not None and await evaluate(
+        conn, row[0], caller.doc, caller.tenant_id
+    )
 
 
 async def _discoverable(conn: AsyncConnection, caller: Caller, row: Row) -> bool:
@@ -80,7 +90,9 @@ async def can_read(conn: AsyncConnection, caller: Caller, row: Row) -> bool:
     return await _discoverable(conn, caller, row)
 
 
-async def _current_version(conn: AsyncConnection, version_id: UUID | None) -> Row | None:
+async def _current_version(
+    conn: AsyncConnection, version_id: UUID | None
+) -> Row | None:
     if version_id is None:
         return None
     async with conn.cursor(row_factory=dict_row) as cur:
@@ -117,19 +129,25 @@ async def _view(conn: AsyncConnection, caller: Caller, row: Row) -> Row:
     return view
 
 
-async def get_visible(conn: AsyncConnection, caller: Caller, resource_id: UUID) -> Row | None:
+async def get_visible(
+    conn: AsyncConnection, caller: Caller, resource_id: UUID
+) -> Row | None:
     row = await fetch_row(conn, resource_id)
     if row is None or not await can_read(conn, caller, row):
         return None
     return await _view(conn, caller, row)
 
 
-async def lock_for_edit(conn: AsyncConnection, caller: Caller, resource_id: UUID) -> Row:
+async def lock_for_edit(
+    conn: AsyncConnection, caller: Caller, resource_id: UUID
+) -> Row:
     row = await lock_resource(conn, resource_id)
     if await can_edit(caller, row):
         return row
     if await can_read(conn, caller, row):
-        raise ApiError(403, "forbidden", "only the owner or an admin can modify this resource")
+        raise ApiError(
+            403, "forbidden", "only the owner or an admin can modify this resource"
+        )
     raise not_found()
 
 
@@ -137,7 +155,9 @@ async def advisory_lock(conn: AsyncConnection, key: str) -> None:
     await conn.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (key,))
 
 
-async def enforce_draft_cap(conn: AsyncConnection, tenant_id: UUID, resource_type: str) -> None:
+async def enforce_draft_cap(
+    conn: AsyncConnection, tenant_id: UUID, resource_type: str
+) -> None:
     await advisory_lock(conn, f"{tenant_id}:{resource_type}")
     cur = await conn.execute(
         "SELECT count(*) FROM registry_versions v JOIN registry r ON r.id = v.registry_id "
@@ -150,7 +170,11 @@ async def enforce_draft_cap(conn: AsyncConnection, tenant_id: UUID, resource_typ
     )
     if current >= limit:
         raise ApiError(
-            409, "draft_limit_reached", "draft limit reached", limit=limit, current=current
+            409,
+            "draft_limit_reached",
+            "draft limit reached",
+            limit=limit,
+            current=current,
         )
 
 
@@ -165,7 +189,9 @@ async def store_skill_file(
     )
 
 
-async def release_skill_files(conn: AsyncConnection, tenant_id: UUID, hashes: list[str]) -> None:
+async def release_skill_files(
+    conn: AsyncConnection, tenant_id: UUID, hashes: list[str]
+) -> None:
     released = sorted(set(hashes))
     for content_sha256 in released:
         await advisory_lock(conn, f"{tenant_id}:{content_sha256}")
@@ -179,7 +205,11 @@ async def release_skill_files(conn: AsyncConnection, tenant_id: UUID, hashes: li
 
 
 async def insert_agent_spec(
-    conn: AsyncConnection, tenant_id: UUID, registry_id: UUID, version_id: UUID, spec: Row
+    conn: AsyncConnection,
+    tenant_id: UUID,
+    registry_id: UUID,
+    version_id: UUID,
+    spec: Row,
 ) -> None:
     await conn.execute(
         "INSERT INTO agents (version_id, registry_id, tenant_id, model, model_config, "
@@ -212,7 +242,9 @@ async def insert_spec(
     if resource_type == AGENT:
         await insert_agent_spec(conn, tenant_id, registry_id, version_id, spec)
     else:
-        await insert_generic_spec(conn, resource_type, tenant_id, registry_id, version_id, spec)
+        await insert_generic_spec(
+            conn, resource_type, tenant_id, registry_id, version_id, spec
+        )
 
 
 def validated_subtype(body: Row) -> tuple[SkillArchive | None, list[FieldError]]:
@@ -263,7 +295,9 @@ async def create_resource(conn: AsyncConnection, caller: Caller, body: Row) -> R
                 conn, caller, body, description, archive
             )
         except errors.UniqueViolation:
-            raise ApiError(409, "slug_taken", "slug already in use for this type") from None
+            raise ApiError(
+                409, "slug_taken", "slug already in use for this type"
+            ) from None
         except errors.ForeignKeyViolation:
             raise validation_failed(
                 [FieldError("policy_id", "policy does not exist")]
@@ -386,7 +420,9 @@ async def update_resource(
         ]
         + [sql.SQL("updated_by = %(by)s, updated_at = now()")]
     )
-    params: Row = {k: Jsonb(v) if k == "meta" else v for k, v in changes.items() if k in PATCHABLE}
+    params: Row = {
+        k: Jsonb(v) if k == "meta" else v for k, v in changes.items() if k in PATCHABLE
+    }
     try:
         async with conn.transaction():
             await conn.execute(
@@ -394,7 +430,9 @@ async def update_resource(
                 {**params, "by": caller.user_id, "id": resource_id},
             )
     except errors.ForeignKeyViolation:
-        raise validation_failed([FieldError("policy_id", "policy does not exist")]) from None
+        raise validation_failed(
+            [FieldError("policy_id", "policy does not exist")]
+        ) from None
     updated = await lock_resource(conn, resource_id)
     return await _view(conn, caller, updated)
 
@@ -403,10 +441,14 @@ async def set_archived(
     conn: AsyncConnection, caller: Caller, resource_id: UUID, archived: bool
 ) -> Row:
     row = await lock_for_edit(conn, caller, resource_id)
-    required, target = ("published", "archived") if archived else ("archived", "published")
+    required, target = (
+        ("published", "archived") if archived else ("archived", "published")
+    )
     if row["status"] != required:
         raise ApiError(
-            409, "invalid_state", f"only {required} resources can be {'archived' if archived else 'unarchived'}"
+            409,
+            "invalid_state",
+            f"only {required} resources can be {'archived' if archived else 'unarchived'}",
         )
     await conn.execute(
         "UPDATE registry SET status = %s, updated_by = %s, updated_at = now() WHERE id = %s",
@@ -436,15 +478,21 @@ async def _referrers(conn: AsyncConnection, resource_id: UUID) -> list[Row]:
         return await cur.fetchall()
 
 
-async def delete_resource(conn: AsyncConnection, caller: Caller, resource_id: UUID) -> None:
+async def delete_resource(
+    conn: AsyncConnection, caller: Caller, resource_id: UUID
+) -> None:
     await lock_for_edit(conn, caller, resource_id)
     referrers = await _referrers(conn, resource_id)
     if referrers:
         raise ApiError(
-            409, "resource_in_use", "resource is referenced by other resources", referrers=referrers
+            409,
+            "resource_in_use",
+            "resource is referenced by other resources",
+            referrers=referrers,
         )
     cur = await conn.execute(
-        "SELECT DISTINCT content_sha256 FROM skills WHERE registry_id = %s", (resource_id,)
+        "SELECT DISTINCT content_sha256 FROM skills WHERE registry_id = %s",
+        (resource_id,),
     )
     hashes = [r[0] for r in await cur.fetchall()]
     await conn.execute("DELETE FROM registry WHERE id = %s", (resource_id,))

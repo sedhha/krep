@@ -63,7 +63,9 @@ async def test_leaf_with_tenant_variable(app_conn: psycopg.AsyncConnection) -> N
 
 def test_ac13_type_mismatch_warning() -> None:
     warnings = warnings_for(parse("token.clearance >= 3"), CONTRACTOR_DOC)
-    assert warnings == ['token.clearance is a string ("3") but is compared with a number']
+    assert warnings == [
+        'token.clearance is a string ("3") but is compared with a number'
+    ]
 
 
 def test_ac13_absent_claim_warning() -> None:
@@ -72,7 +74,9 @@ def test_ac13_absent_claim_warning() -> None:
 
 
 def test_absent_root_and_null_principal() -> None:
-    warnings = warnings_for(parse('principal.roles == "x"'), {"token": {}, "principal": None})
+    warnings = warnings_for(
+        parse('principal.roles == "x"'), {"token": {}, "principal": None}
+    )
     assert warnings == ["principal.roles is absent from the sample"]
 
 
@@ -90,7 +94,7 @@ def test_array_claim_with_matching_elements_does_not_warn() -> None:
 def test_array_claim_with_wrong_element_type_warns() -> None:
     doc = {"token": {"levels": ["1", "2"]}}
     assert warnings_for(parse("token.levels >= 1"), doc) == [
-        'token.levels is a list of strings but is compared with a number'
+        "token.levels is a list of strings but is compared with a number"
     ]
 
 

@@ -20,5 +20,7 @@ async def get_limits(caller: Authenticated, conn: Conn) -> dict[str, Any]:
 
 @router.get("/registry/types")
 async def list_types(_: Authenticated, conn: Conn) -> dict[str, Any]:
-    cur = await conn.execute("SELECT type, description FROM registry_types ORDER BY type")
+    cur = await conn.execute(
+        "SELECT type, description FROM registry_types ORDER BY type"
+    )
     return {"types": [{"type": t, "description": d} for t, d in await cur.fetchall()]}

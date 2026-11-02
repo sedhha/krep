@@ -17,7 +17,9 @@ async def create(
     return r.json()
 
 
-async def test_ac11_create_from_source_and_ast_are_identical(client: httpx.AsyncClient) -> None:
+async def test_ac11_create_from_source_and_ast_are_identical(
+    client: httpx.AsyncClient,
+) -> None:
     from_source = await create(client, "a")
     r = await client.post(BASE, json={"name": "b", "ast": from_source["ast"]})
     assert r.status_code == 201
@@ -29,22 +31,28 @@ async def test_ac11_create_from_source_and_ast_are_identical(client: httpx.Async
     assert from_source["warnings"] == []
 
 
-async def test_create_requires_exactly_one_of_source_and_ast(client: httpx.AsyncClient) -> None:
+async def test_create_requires_exactly_one_of_source_and_ast(
+    client: httpx.AsyncClient,
+) -> None:
     neither = await client.post(BASE, json={"name": "x"})
     both = await client.post(BASE, json={"name": "x", "source": RULE, "ast": {}})
     assert neither.status_code == both.status_code == 422
     assert neither.json()["error"] == "validation_failed"
 
 
-async def test_create_parse_error_reports_line_and_column(client: httpx.AsyncClient) -> None:
-    r = await client.post(BASE, json={"name": "x", "source": 'token.a == '})
+async def test_create_parse_error_reports_line_and_column(
+    client: httpx.AsyncClient,
+) -> None:
+    r = await client.post(BASE, json={"name": "x", "source": "token.a == "})
     assert r.status_code == 422
     body = r.json()
     assert body["error"] == "policy_parse_error"
     assert isinstance(body["line"], int) and isinstance(body["column"], int)
 
 
-async def test_create_too_large_reports_nodes_and_max(client: httpx.AsyncClient) -> None:
+async def test_create_too_large_reports_nodes_and_max(
+    client: httpx.AsyncClient,
+) -> None:
     rule = " && ".join(f'token.k{i} == "v"' for i in range(150))
     r = await client.post(BASE, json={"name": "x", "source": rule})
     assert r.status_code == 422
@@ -84,11 +92,18 @@ async def test_list_returns_created_policies(client: httpx.AsyncClient) -> None:
     assert {i["name"] for i in r.json()["items"]} == {"l1", "l2"}
 
 
-async def test_ac11_put_bumps_rev_and_regenerates_source(client: httpx.AsyncClient) -> None:
+async def test_ac11_put_bumps_rev_and_regenerates_source(
+    client: httpx.AsyncClient,
+) -> None:
     created = await create(client, "u")
     r = await client.put(
         f"{BASE}/{created['id']}",
-        json={"name": "u2", "description": "new", "source": 'token.a  ==  "x"', "rev": 1},
+        json={
+            "name": "u2",
+            "description": "new",
+            "source": 'token.a  ==  "x"',
+            "rev": 1,
+        },
     )
     assert r.status_code == 200
     body = r.json()
@@ -102,7 +117,9 @@ async def test_ac11_put_bumps_rev_and_regenerates_source(client: httpx.AsyncClie
 async def test_ac11_stale_rev_returns_rev_conflict(client: httpx.AsyncClient) -> None:
     created = await create(client, "c")
     path = f"{BASE}/{created['id']}"
-    ok = await client.put(path, json={"name": "c", "source": 'token.a == "x"', "rev": 1})
+    ok = await client.put(
+        path, json={"name": "c", "source": 'token.a == "x"', "rev": 1}
+    )
     assert ok.status_code == 200
     r = await client.put(path, json={"name": "c", "source": 'token.a == "y"', "rev": 1})
     assert r.status_code == 409
@@ -125,7 +142,9 @@ async def test_ac11_history_keeps_newest_twenty(client: httpx.AsyncClient) -> No
     created = await create(client, "h")
     path = f"{BASE}/{created['id']}"
     for rev in range(1, 25):
-        r = await client.put(path, json={"name": "h", "source": f'token.a == "v{rev}"', "rev": rev})
+        r = await client.put(
+            path, json={"name": "h", "source": f'token.a == "v{rev}"', "rev": rev}
+        )
         assert r.status_code == 200
     r = await client.get(f"{path}/history")
     revs = [i["rev"] for i in r.json()["items"]]
@@ -174,7 +193,9 @@ async def test_usage_count_and_resources_reflect_referencing_rows(
     items = (await client.get(f"{path}/resources")).json()["items"]
     assert {i["slug"] for i in items} == {"res-one", "res-two"}
     assert (await client.get(f"{BASE}/{other['id']}/resources")).json()["items"] == []
-    listed = {i["name"]: i["usage_count"] for i in (await client.get(BASE)).json()["items"]}
+    listed = {
+        i["name"]: i["usage_count"] for i in (await client.get(BASE)).json()["items"]
+    }
     assert listed == {"used": 2, "unused": 0}
 
 
@@ -200,13 +221,17 @@ async def test_ac12_reserved_policy_cannot_be_deleted_or_renamed(
     client: httpx.AsyncClient, owner_exec: OwnerExec
 ) -> None:
     created = await create(client, "locked")
-    await owner_exec("UPDATE access_policies SET reserved = true WHERE id = %s", (created["id"],))
+    await owner_exec(
+        "UPDATE access_policies SET reserved = true WHERE id = %s", (created["id"],)
+    )
     path = f"{BASE}/{created['id']}"
     deleted = await client.delete(path)
     renamed = await client.put(path, json={"name": "other", "source": RULE, "rev": 1})
     assert deleted.status_code == renamed.status_code == 409
     assert deleted.json()["error"] == renamed.json()["error"] == "policy_reserved"
-    kept = await client.put(path, json={"name": "locked", "source": 'token.a == "x"', "rev": 1})
+    kept = await client.put(
+        path, json={"name": "locked", "source": 'token.a == "x"', "rev": 1}
+    )
     assert kept.status_code == 200
 
 
@@ -326,7 +351,9 @@ async def test_ac13_test_endpoint_reports_absent_claim_and_persists_nothing(
     assert len((await client.get(f"{path}/history")).json()["items"]) == 1
 
 
-async def test_preview_returns_ast_path_warnings_and_summary(client: httpx.AsyncClient) -> None:
+async def test_preview_returns_ast_path_warnings_and_summary(
+    client: httpx.AsyncClient,
+) -> None:
     r = await client.post(f"{BASE}/preview", json={"source": RULE})
     assert r.status_code == 200
     body = r.json()
@@ -337,7 +364,8 @@ async def test_preview_returns_ast_path_warnings_and_summary(client: httpx.Async
 
 async def test_preview_with_sample_returns_warnings(client: httpx.AsyncClient) -> None:
     r = await client.post(
-        f"{BASE}/preview", json={"source": "token.clearance >= 2", "token": {"clearance": "3"}}
+        f"{BASE}/preview",
+        json={"source": "token.clearance >= 2", "token": {"clearance": "3"}},
     )
     assert any("token.clearance is a string" in w for w in r.json()["warnings"])
 

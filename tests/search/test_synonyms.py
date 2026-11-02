@@ -26,7 +26,10 @@ async def slugs(conn: psycopg.AsyncConnection, tenant: uuid.UUID, q: str) -> lis
 
 
 def test_normalise_terms_lowercases_collapses_and_dedupes() -> None:
-    assert normalise_terms(["  Refund ", "Money   BACK", "refund"]) == ["refund", "money back"]
+    assert normalise_terms(["  Refund ", "Money   BACK", "refund"]) == [
+        "refund",
+        "money back",
+    ]
 
 
 @pytest.mark.parametrize(
@@ -51,7 +54,9 @@ def test_normalise_terms_rejects_invalid(terms: list[str]) -> None:
 async def test_ac24_synonym_finds_resource_that_only_says_refund(
     conn: psycopg.AsyncConnection, tenant: uuid.UUID
 ) -> None:
-    await add_resource(conn, tenant, "res", "Billing Agent", description="Handles refund requests")
+    await add_resource(
+        conn, tenant, "res", "Billing Agent", description="Handles refund requests"
+    )
     assert await slugs(conn, tenant, "reimbursement") == []
     await create_group(conn, caller_for(tenant), REFUND)
     assert await slugs(conn, tenant, "reimbursement") == ["res"]
@@ -61,7 +66,9 @@ async def test_ac24_synonym_finds_resource_that_only_says_refund(
 async def test_ac24_deleting_group_removes_effect_immediately(
     conn: psycopg.AsyncConnection, tenant: uuid.UUID
 ) -> None:
-    await add_resource(conn, tenant, "res", "Billing Agent", description="Handles refund requests")
+    await add_resource(
+        conn, tenant, "res", "Billing Agent", description="Handles refund requests"
+    )
     group = await create_group(conn, caller_for(tenant), REFUND)
     assert await slugs(conn, tenant, "reimbursement") == ["res"]
     await delete_group(conn, tenant, group["id"])
@@ -71,7 +78,9 @@ async def test_ac24_deleting_group_removes_effect_immediately(
 async def test_ac24_groups_are_not_transitive(
     conn: psycopg.AsyncConnection, tenant: uuid.UUID
 ) -> None:
-    await add_resource(conn, tenant, "res", "Billing Agent", description="Handles gamma requests")
+    await add_resource(
+        conn, tenant, "res", "Billing Agent", description="Handles gamma requests"
+    )
     await create_group(conn, caller_for(tenant), ["alpha", "beta"])
     await create_group(conn, caller_for(tenant), ["beta", "gamma"])
     assert await slugs(conn, tenant, "beta") == ["res"]
@@ -96,7 +105,9 @@ async def test_same_term_set_returns_synonym_group_exists(
 ) -> None:
     await create_group(conn, caller_for(tenant), REFUND)
     with pytest.raises(ApiError) as exc:
-        await create_group(conn, caller_for(tenant), ["Reimbursement", "refund", "money back"])
+        await create_group(
+            conn, caller_for(tenant), ["Reimbursement", "refund", "money back"]
+        )
     assert (exc.value.status, exc.value.error) == (409, "synonym_group_exists")
 
 

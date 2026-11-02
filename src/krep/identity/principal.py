@@ -9,7 +9,9 @@ MAX_PRINCIPAL_BYTES = 4096
 
 
 def _invalid() -> ApiError:
-    return ApiError(400, "principal_invalid", "X-Principal must be base64url JSON object up to 4 KB")
+    return ApiError(
+        400, "principal_invalid", "X-Principal must be base64url JSON object up to 4 KB"
+    )
 
 
 def decode_principal(header: str | None) -> dict[str, Any] | None:
@@ -27,5 +29,7 @@ def decode_principal(header: str | None) -> dict[str, Any] | None:
     principal = cast("dict[str, Any]", value)
     principal_id = principal.get("id")
     if not isinstance(principal_id, str) or not principal_id:
-        raise ApiError(400, "principal_id_required", "principal must include a string id")
+        raise ApiError(
+            400, "principal_id_required", "principal must include a string id"
+        )
     return principal

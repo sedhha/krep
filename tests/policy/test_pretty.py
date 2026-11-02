@@ -21,7 +21,7 @@ RULES = [
     'token.department == "billing" && ("manager" in token.roles || "support-lead" in token.roles) && !("contractors" in token.groups)',
     'token.name == "O\\"Brien"',
     'token.a == "" || token.b == null',
-    'token.a == true && token.b == false',
+    "token.a == true && token.b == false",
     "token.a == 1.5 && token.b == -2 && token.c == 100.0",
     'token["a\\"b"] == 1',
     'token.a == "é☃😀"',
@@ -33,7 +33,7 @@ RULES = [
     "!(has(token.a) && has(token.b))",
     "has(principal.id)",
     "has(token)",
-    'token.in == 1 && token.has == 2 && token.true == 3 && token.var == 4',
+    "token.in == 1 && token.has == 2 && token.true == 3 && token.var == 4",
     'token["a.b"]["c d"] == 1',
 ]
 
@@ -56,7 +56,9 @@ def test_canonical_formatting() -> None:
     assert to_source(parse('token["https://acme.com/roles"] == 1')) == (
         'token["https://acme.com/roles"] == 1'
     )
-    assert to_source(parse("token.tid == var.tenant_id")) == "token.tid == var.tenant_id"
+    assert (
+        to_source(parse("token.tid == var.tenant_id")) == "token.tid == var.tenant_id"
+    )
 
 
 def test_and_or_children_are_parenthesised() -> None:

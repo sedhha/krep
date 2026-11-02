@@ -8,6 +8,7 @@ from typing import Any
 import psycopg
 import pytest
 import pytest_asyncio
+from psycopg import sql
 
 from krep.api.errors import ApiError
 from krep.identity.resolve import Caller
@@ -24,7 +25,10 @@ from krep.registry.resources import (
     update_resource,
 )
 
-AGENT_SPEC: dict[str, Any] = {"model": "claude-sonnet-5-5", "system_prompt": "You help."}
+AGENT_SPEC: dict[str, Any] = {
+    "model": "claude-sonnet-5-5",
+    "system_prompt": "You help.",
+}
 
 
 def skill_zip(name: str = "refund-flow", body: str = "Body.") -> bytes:
@@ -48,7 +52,9 @@ def agent_body(slug: str = "refund-assistant", **extra: Any) -> dict[str, Any]:
     }
 
 
-def skill_body(slug: str = "refund-flow", archive: bytes | None = None, **extra: Any) -> dict[str, Any]:
+def skill_body(
+    slug: str = "refund-flow", archive: bytes | None = None, **extra: Any
+) -> dict[str, Any]:
     return {
         "type": "skill",
         "slug": slug,
@@ -64,22 +70,31 @@ def tenant() -> uuid.UUID:
 
 
 @pytest_asyncio.fixture
-async def conn(app_conn: psycopg.AsyncConnection, tenant: uuid.UUID) -> AsyncIterator[psycopg.AsyncConnection]:
-    await app_conn.execute("SELECT set_config('app.tenant_id', %s, true)", (str(tenant),))
+async def conn(
+    app_conn: psycopg.AsyncConnection, tenant: uuid.UUID
+) -> AsyncIterator[psycopg.AsyncConnection]:
+    await app_conn.execute(
+        "SELECT set_config('app.tenant_id', %s, true)", (str(tenant),)
+    )
     yield app_conn
 
 
 def caller_for(
-    tenant: uuid.UUID, user: str = "u1", admin: bool = False, doc: dict[str, Any] | None = None
+    tenant: uuid.UUID,
+    user: str = "u1",
+    admin: bool = False,
+    doc: dict[str, Any] | None = None,
 ) -> Caller:
     return Caller(tenant, user, doc or {"token": {}, "principal": {}}, True, admin)
 
 
 async def count(conn: psycopg.AsyncConnection, table: str) -> int:
-    cur = await conn.execute(f"SELECT count(*) FROM {table}")  # type: ignore[arg-type]
+    cur = await conn.execute(
+        sql.SQL("SELECT count(*) FROM {}").format(sql.Identifier(table))
+    )
     row = await cur.fetchone()
     assert row
-    return row[0]
+    return int(row[0])
 
 
 async def publish_raw(conn: psycopg.AsyncConnection, resource_id: uuid.UUID) -> None:
@@ -138,7 +153,9 @@ async def test_create_invalid_spec_is_422_with_field_list_and_writes_nothing(
     assert await count(conn, "registry") == 0
 
 
-async def test_create_unknown_type_is_422(conn: psycopg.AsyncConnection, tenant: uuid.UUID) -> None:
+async def test_create_unknown_type_is_422(
+    conn: psycopg.AsyncConnection, tenant: uuid.UUID
+) -> None:
     with pytest.raises(ApiError) as exc:
         await create_resource(conn, caller_for(tenant), agent_body(type="nope"))
     assert exc.value.status == 422
@@ -149,8 +166,12 @@ async def test_create_ignores_forged_tenant_id_ac1(
     conn: psycopg.AsyncConnection, tenant: uuid.UUID
 ) -> None:
     other = uuid.uuid4()
-    out = await create_resource(conn, caller_for(tenant), agent_body(tenant_id=str(other)))
-    cur = await conn.execute("SELECT tenant_id FROM registry WHERE id = %s", (out["id"],))
+    out = await create_resource(
+        conn, caller_for(tenant), agent_body(tenant_id=str(other))
+    )
+    cur = await conn.execute(
+        "SELECT tenant_id FROM registry WHERE id = %s", (out["id"],)
+    )
     row = await cur.fetchone()
     assert row and row[0] == tenant
 
@@ -174,8 +195,12 @@ async def test_create_skill_writes_registry_version_skill_and_file(
 async def test_create_skill_explicit_description_wins_over_frontmatter(
     conn: psycopg.AsyncConnection, tenant: uuid.UUID
 ) -> None:
-    out = await create_resource(conn, caller_for(tenant), skill_body(description="Mine."))
-    cur = await conn.execute("SELECT description FROM registry WHERE id = %s", (out["id"],))
+    out = await create_resource(
+        conn, caller_for(tenant), skill_body(description="Mine.")
+    )
+    cur = await conn.execute(
+        "SELECT description FROM registry WHERE id = %s", (out["id"],)
+    )
     row = await cur.fetchone()
     assert row and row[0] == "Mine."
 
@@ -184,7 +209,9 @@ async def test_create_skill_rejected_archive_leaves_nothing_behind(
     conn: psycopg.AsyncConnection, tenant: uuid.UUID
 ) -> None:
     with pytest.raises(ApiError) as exc:
-        await create_resource(conn, caller_for(tenant), skill_body(archive=b"not a zip"))
+        await create_resource(
+            conn, caller_for(tenant), skill_body(archive=b"not a zip")
+        )
     assert (exc.value.status, exc.value.error) == (422, "validation_failed")
     assert exc.value.extra["errors"][0]["field"].startswith("archive")
     for table in ("registry", "registry_versions", "skills", "skill_files"):
@@ -195,7 +222,9 @@ async def test_create_skill_slug_must_match_archive_directory(
     conn: psycopg.AsyncConnection, tenant: uuid.UUID
 ) -> None:
     with pytest.raises(ApiError) as exc:
-        await create_resource(conn, caller_for(tenant), skill_body("other-name", skill_zip("refund-flow")))
+        await create_resource(
+            conn, caller_for(tenant), skill_body("other-name", skill_zip("refund-flow"))
+        )
     assert exc.value.status == 422
     assert await count(conn, "registry") == 0
 
@@ -209,7 +238,9 @@ async def test_create_skill_with_json_spec_is_422(
     with pytest.raises(ApiError) as exc:
         await create_resource(conn, caller_for(tenant), body)
     assert exc.value.status == 422
-    assert {"field": "spec", "message": "skills take an archive"} in exc.value.extra["errors"]
+    assert {"field": "spec", "message": "skills take an archive"} in exc.value.extra[
+        "errors"
+    ]
 
 
 async def test_ac16_51st_draft_is_409_with_limit_and_current(
@@ -225,7 +256,9 @@ async def test_ac16_51st_draft_is_409_with_limit_and_current(
     assert exc.value.extra["current"] == 50
 
 
-async def test_draft_cap_is_per_type(conn: psycopg.AsyncConnection, tenant: uuid.UUID) -> None:
+async def test_draft_cap_is_per_type(
+    conn: psycopg.AsyncConnection, tenant: uuid.UUID
+) -> None:
     caller = caller_for(tenant)
     for i in range(50):
         await create_resource(conn, caller, agent_body(f"agent-{i:02d}"))
@@ -237,7 +270,9 @@ async def test_draft_cap_is_per_type(conn: psycopg.AsyncConnection, tenant: uuid
 async def test_ac5_get_visible_matrix_private_and_tenant(
     conn: psycopg.AsyncConnection, tenant: uuid.UUID, visibility: str
 ) -> None:
-    out = await create_resource(conn, caller_for(tenant), agent_body(visibility=visibility))
+    out = await create_resource(
+        conn, caller_for(tenant), agent_body(visibility=visibility)
+    )
     await publish_raw(conn, out["id"])
     creator = await get_visible(conn, caller_for(tenant, "u1"), out["id"])
     other = await get_visible(conn, caller_for(tenant, "u2"), out["id"])
@@ -248,13 +283,21 @@ async def test_ac5_get_visible_matrix_private_and_tenant(
 async def test_ac5_get_visible_restricted_follows_policy(
     conn: psycopg.AsyncConnection, tenant: uuid.UUID
 ) -> None:
-    policy = await write_policy(conn, tenant, "billing", parse('token.department == "billing"'), "admin")
+    policy = await write_policy(
+        conn, tenant, "billing", parse('token.department == "billing"'), "admin"
+    )
     out = await create_resource(
-        conn, caller_for(tenant), agent_body(visibility="restricted", policy_id=policy.id)
+        conn,
+        caller_for(tenant),
+        agent_body(visibility="restricted", policy_id=policy.id),
     )
     await publish_raw(conn, out["id"])
-    match = caller_for(tenant, "u2", doc={"token": {"department": "billing"}, "principal": {}})
-    miss = caller_for(tenant, "u3", doc={"token": {"department": "sales"}, "principal": {}})
+    match = caller_for(
+        tenant, "u2", doc={"token": {"department": "billing"}, "principal": {}}
+    )
+    miss = caller_for(
+        tenant, "u3", doc={"token": {"department": "sales"}, "principal": {}}
+    )
     assert await get_visible(conn, match, out["id"]) is not None
     assert await get_visible(conn, miss, out["id"]) is None
 
@@ -262,7 +305,9 @@ async def test_ac5_get_visible_restricted_follows_policy(
 async def test_ac5_get_visible_other_tenant_is_none(
     conn: psycopg.AsyncConnection, tenant: uuid.UUID
 ) -> None:
-    out = await create_resource(conn, caller_for(tenant), agent_body(visibility="tenant"))
+    out = await create_resource(
+        conn, caller_for(tenant), agent_body(visibility="tenant")
+    )
     await publish_raw(conn, out["id"])
     stranger = uuid.uuid4()
     await conn.execute("SELECT set_config('app.tenant_id', %s, true)", (str(stranger),))
@@ -278,9 +323,14 @@ async def test_ac6_get_visible_missing_id_is_none(
 async def test_draft_visible_only_to_owner_and_admin(
     conn: psycopg.AsyncConnection, tenant: uuid.UUID
 ) -> None:
-    out = await create_resource(conn, caller_for(tenant), agent_body(visibility="tenant"))
+    out = await create_resource(
+        conn, caller_for(tenant), agent_body(visibility="tenant")
+    )
     assert await get_visible(conn, caller_for(tenant, "u1"), out["id"]) is not None
-    assert await get_visible(conn, caller_for(tenant, "u2", admin=True), out["id"]) is not None
+    assert (
+        await get_visible(conn, caller_for(tenant, "u2", admin=True), out["id"])
+        is not None
+    )
     assert await get_visible(conn, caller_for(tenant, "u2"), out["id"]) is None
 
 
@@ -296,7 +346,9 @@ async def test_get_visible_includes_current_version_summary(
     assert published["current_version"]["content_hash"] == "a" * 64
 
 
-async def test_can_edit_is_owner_or_admin(conn: psycopg.AsyncConnection, tenant: uuid.UUID) -> None:
+async def test_can_edit_is_owner_or_admin(
+    conn: psycopg.AsyncConnection, tenant: uuid.UUID
+) -> None:
     out = await create_resource(conn, caller_for(tenant), agent_body())
     row = await lock_resource(conn, out["id"])
     assert await can_edit(caller_for(tenant, "u1"), row)
@@ -304,7 +356,9 @@ async def test_can_edit_is_owner_or_admin(conn: psycopg.AsyncConnection, tenant:
     assert not await can_edit(caller_for(tenant, "u2"), row)
 
 
-async def test_lock_resource_missing_is_404(conn: psycopg.AsyncConnection, tenant: uuid.UUID) -> None:
+async def test_lock_resource_missing_is_404(
+    conn: psycopg.AsyncConnection, tenant: uuid.UUID
+) -> None:
     with pytest.raises(ApiError) as exc:
         await lock_resource(conn, uuid.uuid4())
     assert exc.value.status == 404
@@ -313,16 +367,29 @@ async def test_lock_resource_missing_is_404(conn: psycopg.AsyncConnection, tenan
 async def test_list_shows_own_with_drafts_and_admin_sees_all(
     conn: psycopg.AsyncConnection, tenant: uuid.UUID
 ) -> None:
-    mine = await create_resource(conn, caller_for(tenant, "u1"), agent_body("mine-agent"))
-    theirs = await create_resource(conn, caller_for(tenant, "u2"), agent_body("their-agent"))
+    mine = await create_resource(
+        conn, caller_for(tenant, "u1"), agent_body("mine-agent")
+    )
+    theirs = await create_resource(
+        conn, caller_for(tenant, "u2"), agent_body("their-agent")
+    )
     skill = await create_resource(conn, caller_for(tenant, "u1"), skill_body())
     own = await list_resources(conn, caller_for(tenant, "u1"), type=None, status=None)
     assert {i["id"] for i in own} == {mine["id"], skill["id"]}
-    everything = await list_resources(conn, caller_for(tenant, "u3", admin=True), type=None, status=None)
+    everything = await list_resources(
+        conn, caller_for(tenant, "u3", admin=True), type=None, status=None
+    )
     assert {i["id"] for i in everything} == {mine["id"], theirs["id"], skill["id"]}
-    only_agents = await list_resources(conn, caller_for(tenant, "u1"), type="agent", status="draft")
+    only_agents = await list_resources(
+        conn, caller_for(tenant, "u1"), type="agent", status="draft"
+    )
     assert [i["id"] for i in only_agents] == [mine["id"]]
-    assert await list_resources(conn, caller_for(tenant, "u1"), type=None, status="published") == []
+    assert (
+        await list_resources(
+            conn, caller_for(tenant, "u1"), type=None, status="published"
+        )
+        == []
+    )
 
 
 async def test_update_restricted_requires_policy_id(
@@ -330,7 +397,9 @@ async def test_update_restricted_requires_policy_id(
 ) -> None:
     out = await create_resource(conn, caller_for(tenant), agent_body())
     with pytest.raises(ApiError) as exc:
-        await update_resource(conn, caller_for(tenant), out["id"], {"visibility": "restricted"})
+        await update_resource(
+            conn, caller_for(tenant), out["id"], {"visibility": "restricted"}
+        )
     assert (exc.value.status, exc.value.error) == (422, "validation_failed")
     assert exc.value.extra["errors"][0]["field"] == "policy_id"
 
@@ -340,20 +409,31 @@ async def test_update_switching_away_from_restricted_keeps_policy_id(
 ) -> None:
     policy = await write_policy(conn, tenant, "p", parse('token.a == "b"'), "admin")
     out = await create_resource(
-        conn, caller_for(tenant), agent_body(visibility="restricted", policy_id=policy.id)
+        conn,
+        caller_for(tenant),
+        agent_body(visibility="restricted", policy_id=policy.id),
     )
-    updated = await update_resource(conn, caller_for(tenant), out["id"], {"visibility": "tenant"})
+    updated = await update_resource(
+        conn, caller_for(tenant), out["id"], {"visibility": "tenant"}
+    )
     assert updated["visibility"] == "tenant"
-    cur = await conn.execute("SELECT policy_id FROM registry WHERE id = %s", (out["id"],))
+    cur = await conn.execute(
+        "SELECT policy_id FROM registry WHERE id = %s", (out["id"],)
+    )
     row = await cur.fetchone()
     assert row and row[0] == policy.id
 
 
-async def test_update_unknown_policy_is_422(conn: psycopg.AsyncConnection, tenant: uuid.UUID) -> None:
+async def test_update_unknown_policy_is_422(
+    conn: psycopg.AsyncConnection, tenant: uuid.UUID
+) -> None:
     out = await create_resource(conn, caller_for(tenant), agent_body())
     with pytest.raises(ApiError) as exc:
         await update_resource(
-            conn, caller_for(tenant), out["id"], {"visibility": "restricted", "policy_id": uuid.uuid4()}
+            conn,
+            caller_for(tenant),
+            out["id"],
+            {"visibility": "restricted", "policy_id": uuid.uuid4()},
         )
     assert exc.value.status == 422
     assert exc.value.extra["errors"][0]["field"] == "policy_id"
@@ -369,13 +449,20 @@ async def test_update_applies_fields_and_stamps_updater(
         out["id"],
         {"name": "Renamed", "tags": ["x"], "meta": {"k": 1}, "description": "New."},
     )
-    assert (updated["name"], updated["tags"], updated["meta"], updated["description"]) == (
+    assert (
+        updated["name"],
+        updated["tags"],
+        updated["meta"],
+        updated["description"],
+    ) == (
         "Renamed",
         ["x"],
         {"k": 1},
         "New.",
     )
-    cur = await conn.execute("SELECT updated_by FROM registry WHERE id = %s", (out["id"],))
+    cur = await conn.execute(
+        "SELECT updated_by FROM registry WHERE id = %s", (out["id"],)
+    )
     row = await cur.fetchone()
     assert row and row[0] == "u9"
 
@@ -383,14 +470,22 @@ async def test_update_applies_fields_and_stamps_updater(
 async def test_update_by_non_owner_is_403_when_visible_and_404_when_hidden(
     conn: psycopg.AsyncConnection, tenant: uuid.UUID
 ) -> None:
-    shared = await create_resource(conn, caller_for(tenant, "u1"), agent_body("shared-one", visibility="tenant"))
+    shared = await create_resource(
+        conn, caller_for(tenant, "u1"), agent_body("shared-one", visibility="tenant")
+    )
     await publish_raw(conn, shared["id"])
-    hidden = await create_resource(conn, caller_for(tenant, "u1"), agent_body("hidden-one"))
+    hidden = await create_resource(
+        conn, caller_for(tenant, "u1"), agent_body("hidden-one")
+    )
     await publish_raw(conn, hidden["id"])
     with pytest.raises(ApiError) as visible:
-        await update_resource(conn, caller_for(tenant, "u2"), shared["id"], {"name": "x"})
+        await update_resource(
+            conn, caller_for(tenant, "u2"), shared["id"], {"name": "x"}
+        )
     with pytest.raises(ApiError) as invisible:
-        await update_resource(conn, caller_for(tenant, "u2"), hidden["id"], {"name": "x"})
+        await update_resource(
+            conn, caller_for(tenant, "u2"), hidden["id"], {"name": "x"}
+        )
     assert visible.value.status == 403
     assert invisible.value.status == 404
 
@@ -398,7 +493,9 @@ async def test_update_by_non_owner_is_403_when_visible_and_404_when_hidden(
 async def test_archive_hides_from_other_users_but_owner_still_reads(
     conn: psycopg.AsyncConnection, tenant: uuid.UUID
 ) -> None:
-    out = await create_resource(conn, caller_for(tenant, "u1"), agent_body(visibility="tenant"))
+    out = await create_resource(
+        conn, caller_for(tenant, "u1"), agent_body(visibility="tenant")
+    )
     await publish_raw(conn, out["id"])
     archived = await set_archived(conn, caller_for(tenant, "u1"), out["id"], True)
     assert archived["status"] == "archived"
@@ -409,7 +506,9 @@ async def test_archive_hides_from_other_users_but_owner_still_reads(
     assert await get_visible(conn, caller_for(tenant, "u2"), out["id"]) is not None
 
 
-async def test_archive_requires_matching_state(conn: psycopg.AsyncConnection, tenant: uuid.UUID) -> None:
+async def test_archive_requires_matching_state(
+    conn: psycopg.AsyncConnection, tenant: uuid.UUID
+) -> None:
     out = await create_resource(conn, caller_for(tenant), agent_body())
     with pytest.raises(ApiError) as draft:
         await set_archived(conn, caller_for(tenant), out["id"], True)
@@ -420,8 +519,12 @@ async def test_archive_requires_matching_state(conn: psycopg.AsyncConnection, te
     assert published.value.status == 409
 
 
-async def test_archive_by_non_owner_is_403(conn: psycopg.AsyncConnection, tenant: uuid.UUID) -> None:
-    out = await create_resource(conn, caller_for(tenant, "u1"), agent_body(visibility="tenant"))
+async def test_archive_by_non_owner_is_403(
+    conn: psycopg.AsyncConnection, tenant: uuid.UUID
+) -> None:
+    out = await create_resource(
+        conn, caller_for(tenant, "u1"), agent_body(visibility="tenant")
+    )
     await publish_raw(conn, out["id"])
     with pytest.raises(ApiError) as exc:
         await set_archived(conn, caller_for(tenant, "u2"), out["id"], True)
@@ -454,7 +557,9 @@ async def test_ac22_delete_with_inbound_link_is_409_resource_in_use_with_referre
     assert await count(conn, "registry") == 2
 
 
-async def test_delete_removes_outgoing_links(conn: psycopg.AsyncConnection, tenant: uuid.UUID) -> None:
+async def test_delete_removes_outgoing_links(
+    conn: psycopg.AsyncConnection, tenant: uuid.UUID
+) -> None:
     skill = await create_resource(conn, caller_for(tenant), skill_body())
     agent = await create_resource(conn, caller_for(tenant), agent_body())
     await conn.execute(
@@ -480,7 +585,9 @@ async def test_delete_skill_keeps_archive_shared_with_another_skill(
     conn: psycopg.AsyncConnection, tenant: uuid.UUID
 ) -> None:
     data = skill_zip("twin-flow")
-    first = await create_resource(conn, caller_for(tenant), skill_body("twin-flow", data))
+    first = await create_resource(
+        conn, caller_for(tenant), skill_body("twin-flow", data)
+    )
     await conn.execute(
         "INSERT INTO registry (tenant_id, type, slug, name, created_by, updated_by) "
         "VALUES (%s, 'skill', 'twin-copy', 'Copy', 'u1', 'u1') RETURNING id",
@@ -503,8 +610,12 @@ async def test_delete_skill_keeps_archive_shared_with_another_skill(
     assert await count(conn, "skills") == 1
 
 
-async def test_delete_by_non_owner_is_403(conn: psycopg.AsyncConnection, tenant: uuid.UUID) -> None:
-    out = await create_resource(conn, caller_for(tenant, "u1"), agent_body(visibility="tenant"))
+async def test_delete_by_non_owner_is_403(
+    conn: psycopg.AsyncConnection, tenant: uuid.UUID
+) -> None:
+    out = await create_resource(
+        conn, caller_for(tenant, "u1"), agent_body(visibility="tenant")
+    )
     await publish_raw(conn, out["id"])
     with pytest.raises(ApiError) as exc:
         await delete_resource(conn, caller_for(tenant, "u2"), out["id"])

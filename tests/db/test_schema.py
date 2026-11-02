@@ -10,16 +10,33 @@ from psycopg import AsyncConnection
 TENANT = str(uuid.uuid4())
 
 TABLES = {
-    "registry_types", "access_policies", "access_policy_history", "registry",
-    "registry_versions", "agents", "skills", "skill_files", "link_rules", "registry_links",
-    "registry_version_deps", "resource_limits", "search_synonyms",
-    "token_issuers", "api_keys",
+    "registry_types",
+    "access_policies",
+    "access_policy_history",
+    "registry",
+    "registry_versions",
+    "agents",
+    "skills",
+    "skill_files",
+    "link_rules",
+    "registry_links",
+    "registry_version_deps",
+    "resource_limits",
+    "search_synonyms",
+    "token_issuers",
+    "api_keys",
 }
 
 INDEXES = {
-    "access_policies_tenant", "registry_tenant_type_status", "registry_tags_gin",
-    "registry_tsv_gin", "registry_name_trgm", "registry_versions_drafts",
-    "registry_links_src", "registry_links_tgt", "registry_version_deps_rev",
+    "access_policies_tenant",
+    "registry_tenant_type_status",
+    "registry_tags_gin",
+    "registry_tsv_gin",
+    "registry_name_trgm",
+    "registry_versions_drafts",
+    "registry_links_src",
+    "registry_links_tgt",
+    "registry_version_deps_rev",
     "search_synonyms_tenant",
 }
 
@@ -36,8 +53,13 @@ async def insert_registry(
     conn: AsyncConnection, type: str = "agent", **overrides: Any
 ) -> None:
     values: dict[str, Any] = {
-        "slug": "my-agent", "name": "My agent", "description": "", "tags": [],
-        "visibility": "private", "policy_id": None, **overrides,
+        "slug": "my-agent",
+        "name": "My agent",
+        "description": "",
+        "tags": [],
+        "visibility": "private",
+        "policy_id": None,
+        **overrides,
     }
     await conn.execute(
         "INSERT INTO registry (tenant_id, type, slug, name, description, tags, "
@@ -69,13 +91,17 @@ async def test_extensions_present(owner_conn: AsyncConnection) -> None:
     assert {r[0] for r in await cur.fetchall()} == {"pg_trgm", "pgcrypto"}
 
 
-async def test_restricted_visibility_requires_policy(owner_conn: AsyncConnection) -> None:
+async def test_restricted_visibility_requires_policy(
+    owner_conn: AsyncConnection,
+) -> None:
     await scope_tenant(owner_conn)
     with pytest.raises(psycopg.errors.CheckViolation):
         await insert_registry(owner_conn, visibility="restricted", policy_id=None)
 
 
-async def test_private_visibility_without_policy_is_allowed(owner_conn: AsyncConnection) -> None:
+async def test_private_visibility_without_policy_is_allowed(
+    owner_conn: AsyncConnection,
+) -> None:
     await scope_tenant(owner_conn)
     await insert_registry(owner_conn)
 
@@ -102,7 +128,9 @@ async def test_registry_checks_fire(
         await insert_registry(owner_conn, **overrides)
 
 
-async def test_registry_type_check_on_registry_types(owner_conn: AsyncConnection) -> None:
+async def test_registry_type_check_on_registry_types(
+    owner_conn: AsyncConnection,
+) -> None:
     with pytest.raises(psycopg.errors.CheckViolation):
         await owner_conn.execute(
             "INSERT INTO registry_types (type, subtype_table) VALUES ('Bad-Type', 'x')"
@@ -149,7 +177,9 @@ async def test_version_status_ties_to_publish_columns(
             await owner_conn.execute(statement, params)
 
 
-async def test_version_status_rejects_unknown_value(owner_conn: AsyncConnection) -> None:
+async def test_version_status_rejects_unknown_value(
+    owner_conn: AsyncConnection,
+) -> None:
     registry_id = await _registry_id(owner_conn)
     with pytest.raises(psycopg.errors.CheckViolation):
         await owner_conn.execute(
@@ -259,7 +289,9 @@ async def test_skill_must_reference_an_existing_archive(owner_conn: AsyncConnect
         await insert_skill(owner_conn, ids, sha256(b"never uploaded"))
 
 
-async def test_identical_archives_in_a_tenant_share_one_file(owner_conn: AsyncConnection):
+async def test_identical_archives_in_a_tenant_share_one_file(
+    owner_conn: AsyncConnection,
+):
     digest = await put_file(owner_conn)
     await insert_skill(owner_conn, await skill_version(owner_conn, "skill-a"), digest)
     await insert_skill(owner_conn, await skill_version(owner_conn, "skill-b"), digest)
@@ -275,7 +307,9 @@ async def test_identical_archives_in_different_tenants_are_stored_separately(
     await put_file(owner_conn, tenant=TENANT)
     await put_file(owner_conn, tenant=OTHER_TENANT)
     for tenant in (TENANT, OTHER_TENANT):
-        await owner_conn.execute("SELECT set_config('app.tenant_id', %s, true)", (tenant,))
+        await owner_conn.execute(
+            "SELECT set_config('app.tenant_id', %s, true)", (tenant,)
+        )
         cur = await owner_conn.execute(
             "SELECT count(*) FROM skill_files WHERE content_sha256 = %s", (sha256(ZIP),)
         )
@@ -307,7 +341,9 @@ async def test_archive_is_deletable_once_no_skill_references_it(
     assert cur.rowcount == 1
 
 
-async def test_orphan_cleanup_keeps_archives_still_referenced(owner_conn: AsyncConnection):
+async def test_orphan_cleanup_keeps_archives_still_referenced(
+    owner_conn: AsyncConnection,
+):
     digest = await put_file(owner_conn)
     first = await skill_version(owner_conn, "skill-a")
     await insert_skill(owner_conn, first, digest)

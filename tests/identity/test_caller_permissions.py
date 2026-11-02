@@ -45,7 +45,9 @@ def build_app(pool: Pool) -> FastAPI:
         return {"ok": True}
 
     @app.get("/db")
-    async def tenant_setting(conn: Annotated[AsyncConnection, Depends(db)]) -> dict[str, str]:
+    async def tenant_setting(
+        conn: Annotated[AsyncConnection, Depends(db)],
+    ) -> dict[str, str]:
         cur = await conn.execute("SELECT current_setting('app.tenant_id')")
         row = await cur.fetchone()
         assert row is not None
@@ -165,7 +167,10 @@ async def test_api_key_caller_is_evaluated_against_principal(
 
     key, _, tenant_id = await add_api_key(allow_principal=True)
     await add_policy(tenant_id, "registry-writers", '"support" in principal.roles')
-    allowed = {"x-api-key": key, "x-principal": b64url({"id": "u1", "roles": ["support"]})}
+    allowed = {
+        "x-api-key": key,
+        "x-principal": b64url({"id": "u1", "roles": ["support"]}),
+    }
     denied = {"x-api-key": key, "x-principal": b64url({"id": "u2", "roles": ["other"]})}
     assert (await client.get("/write", headers=allowed)).status_code == 200
     assert (await client.get("/write", headers=denied)).status_code == 403

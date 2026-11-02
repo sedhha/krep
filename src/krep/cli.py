@@ -20,7 +20,9 @@ def _tenant(value: str) -> UUID:
     try:
         return UUID(value)
     except ValueError:
-        raise argparse.ArgumentTypeError(f"{value!r} is not a valid tenant uuid") from None
+        raise argparse.ArgumentTypeError(
+            f"{value!r} is not a valid tenant uuid"
+        ) from None
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -56,10 +58,14 @@ def _error(exc: PolicyError) -> str:
 
 
 async def _scope(conn: AsyncConnection, tenant_id: UUID) -> None:
-    await conn.execute("SELECT set_config('app.tenant_id', %s, true)", (str(tenant_id),))
+    await conn.execute(
+        "SELECT set_config('app.tenant_id', %s, true)", (str(tenant_id),)
+    )
 
 
-async def _tenant_init(conn: AsyncConnection, tenant_id: UUID, admin: str, writer: str) -> None:
+async def _tenant_init(
+    conn: AsyncConnection, tenant_id: UUID, admin: str, writer: str
+) -> None:
     rules = {"registry-admins": parse(admin), "registry-writers": parse(writer)}
     async with conn.transaction():
         await _scope(conn, tenant_id)
@@ -72,7 +78,9 @@ async def _tenant_init(conn: AsyncConnection, tenant_id: UUID, admin: str, write
                 await write_policy(conn, tenant_id, name, ast, CLI_USER, reserved=True)
 
 
-async def _policy_reset(conn: AsyncConnection, tenant_id: UUID, name: str, rule: str) -> None:
+async def _policy_reset(
+    conn: AsyncConnection, tenant_id: UUID, name: str, rule: str
+) -> None:
     ast = parse(rule)
     async with conn.transaction():
         await _scope(conn, tenant_id)
@@ -99,7 +107,9 @@ async def _recompile(conn: AsyncConnection, tenants: list[UUID]) -> int:
 
 
 async def _run(args: argparse.Namespace) -> None:
-    url = os.environ["KREP_MIGRATION_DATABASE_URL"].replace("postgresql+psycopg://", "postgresql://")
+    url = os.environ["KREP_MIGRATION_DATABASE_URL"].replace(
+        "postgresql+psycopg://", "postgresql://"
+    )
     async with await AsyncConnection.connect(url) as conn:
         if args.group == "tenant":
             await _tenant_init(conn, args.tenant, args.admin_rule, args.writer_rule)

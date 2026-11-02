@@ -14,17 +14,22 @@ def make_client(monkeypatch: pytest.MonkeyPatch, token: str) -> httpx.AsyncClien
     app = FastAPI()
     install_error_handlers(app)
     app.include_router(metrics_api.router)
-    return httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t")
+    return httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://t"
+    )
 
 
 async def test_metrics_disabled_without_token(monkeypatch: pytest.MonkeyPatch) -> None:
     async with make_client(monkeypatch, "") as c:
         assert (await c.get("/metrics")).status_code == 404
-        assert (await c.get("/metrics", headers={"Authorization": "Bearer "})).status_code == 404
+        assert (
+            await c.get("/metrics", headers={"Authorization": "Bearer "})
+        ).status_code == 404
 
 
 @pytest.mark.parametrize(
-    "headers", [{}, {"Authorization": "Bearer wrong"}, {"Authorization": "Basic s3cret"}]
+    "headers",
+    [{}, {"Authorization": "Bearer wrong"}, {"Authorization": "Basic s3cret"}],
 )
 async def test_metrics_rejects_missing_or_wrong_token(
     monkeypatch: pytest.MonkeyPatch, headers: dict[str, str]
@@ -42,4 +47,7 @@ async def test_metrics_serves_prometheus_text_with_valid_token(
         res = await c.get("/metrics", headers={"Authorization": "Bearer s3cret"})
         assert res.status_code == 200
         assert res.headers["content-type"].startswith("text/plain")
-        assert 'search_zero_results_total{tenant="tenant-for-metrics-test"} 1.0' in res.text
+        assert (
+            'search_zero_results_total{tenant="tenant-for-metrics-test"} 1.0'
+            in res.text
+        )

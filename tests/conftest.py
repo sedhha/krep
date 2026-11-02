@@ -47,7 +47,9 @@ def create_database() -> str:
 def drop_database(name: str) -> None:
     with psycopg.connect(SUPERUSER_URL, autocommit=True) as conn:
         conn.execute(
-            sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(sql.Identifier(name))
+            sql.SQL("DROP DATABASE IF EXISTS {} WITH (FORCE)").format(
+                sql.Identifier(name)
+            )
         )
 
 

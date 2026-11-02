@@ -12,7 +12,9 @@ def test_normalise_keeps_underscore_and_digits() -> None:
 
 
 def test_normalise_caps_tokens_at_12() -> None:
-    assert normalise(" ".join(f"w{i}" for i in range(20))) == " ".join(f"w{i}" for i in range(12))
+    assert normalise(" ".join(f"w{i}" for i in range(20))) == " ".join(
+        f"w{i}" for i in range(12)
+    )
 
 
 def test_normalise_caps_length_at_100() -> None:
@@ -60,7 +62,9 @@ def test_build_tsquery_empty_is_none() -> None:
     assert build_tsquery([]) is None
 
 
-@pytest.mark.parametrize("raw", ["refund | ) & !", "'\"; --", "the a of", "", "   ", "!!!"])
+@pytest.mark.parametrize(
+    "raw", ["refund | ) & !", "'\"; --", "the a of", "", "   ", "!!!"]
+)
 def test_ac25_hostile_inputs_build_without_error(raw: str) -> None:
     terms = expand(normalise(raw), [])
     tsq = build_tsquery(terms)

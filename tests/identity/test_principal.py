@@ -28,7 +28,9 @@ def test_missing_or_non_string_id(value: dict[str, object]) -> None:
     assert (exc.value.status, exc.value.error) == (400, "principal_id_required")
 
 
-@pytest.mark.parametrize("header", ["!!!not-base64!!!", b64url(b"\xff\xfe"), b64url(b"{nope")])
+@pytest.mark.parametrize(
+    "header", ["!!!not-base64!!!", b64url(b"\xff\xfe"), b64url(b"{nope")]
+)
 def test_invalid_encoding_or_json(header: str) -> None:
     with pytest.raises(ApiError) as exc:
         decode_principal(header)

@@ -86,7 +86,11 @@ async def load_spec(conn: AsyncConnection, resource_type: str, version_id: UUID)
 
 
 async def spec_view(
-    conn: AsyncConnection, resource_id: UUID, resource_type: str, version_id: UUID, n: int
+    conn: AsyncConnection,
+    resource_id: UUID,
+    resource_type: str,
+    version_id: UUID,
+    n: int,
 ) -> Row:
     spec = await load_spec(conn, resource_type, version_id)
     if resource_type == SKILL:
@@ -99,7 +103,14 @@ async def _view(
 ) -> Row:
     view: Row = {
         key: version[key]
-        for key in ("version", "status", "content_hash", "created_by", "created_at", "published_at")
+        for key in (
+            "version",
+            "status",
+            "content_hash",
+            "created_by",
+            "created_at",
+            "published_at",
+        )
     }
     if with_spec:
         view["spec"] = await spec_view(
@@ -119,12 +130,16 @@ async def _visible_version(
     conn: AsyncConnection, caller: Caller, resource: Row, n: int
 ) -> Row:
     version = await fetch_version(conn, resource["id"], n)
-    if version is None or (version["status"] == "draft" and not await can_edit(caller, resource)):
+    if version is None or (
+        version["status"] == "draft" and not await can_edit(caller, resource)
+    ):
         raise version_not_found()
     return version
 
 
-async def list_versions(conn: AsyncConnection, caller: Caller, resource_id: UUID) -> list[Row]:
+async def list_versions(
+    conn: AsyncConnection, caller: Caller, resource_id: UUID
+) -> list[Row]:
     resource = await _readable(conn, caller, resource_id)
     editable = await can_edit(caller, resource)
     async with conn.cursor(row_factory=dict_row) as cur:
@@ -137,7 +152,9 @@ async def list_versions(conn: AsyncConnection, caller: Caller, resource_id: UUID
     return [await _view(conn, resource, row, False) for row in rows]
 
 
-async def get_version(conn: AsyncConnection, caller: Caller, resource_id: UUID, n: int) -> Row:
+async def get_version(
+    conn: AsyncConnection, caller: Caller, resource_id: UUID, n: int
+) -> Row:
     resource = await _readable(conn, caller, resource_id)
     version = await _visible_version(conn, caller, resource, n)
     return await _view(conn, resource, version, True)
@@ -162,7 +179,11 @@ async def get_archive(
 
 
 async def _insert_skill_row(
-    conn: AsyncConnection, tenant_id: UUID, resource_id: UUID, version_id: UUID, content_sha256: str
+    conn: AsyncConnection,
+    tenant_id: UUID,
+    resource_id: UUID,
+    version_id: UUID,
+    content_sha256: str,
 ) -> None:
     await conn.execute(
         "INSERT INTO skills (version_id, registry_id, tenant_id, content_sha256) "
@@ -188,7 +209,9 @@ async def _copy_subtype(
             (new_version_id, source_version_id),
         )
     else:
-        await copy_generic_spec(conn, resource["type"], source_version_id, new_version_id)
+        await copy_generic_spec(
+            conn, resource["type"], source_version_id, new_version_id
+        )
 
 
 async def _source_version(
@@ -219,7 +242,12 @@ async def _source_version(
 
 def _checked_archive(resource: Row, data: bytes) -> SkillArchive:
     archive, problems = validated_subtype(
-        {"type": resource["type"], "slug": resource["slug"], "spec": None, "archive": data}
+        {
+            "type": resource["type"],
+            "slug": resource["slug"],
+            "spec": None,
+            "archive": data,
+        }
     )
     if problems or archive is None:
         raise validation_failed(problems)
@@ -239,7 +267,11 @@ async def create_draft(
     if archive is not None:
         if from_version is not None:
             raise validation_failed(
-                [FieldError("from_version", "cannot be combined with an archive upload")]
+                [
+                    FieldError(
+                        "from_version", "cannot be combined with an archive upload"
+                    )
+                ]
             )
         checked = _checked_archive(resource, archive)
     else:
@@ -260,7 +292,9 @@ async def create_draft(
     version_id: UUID = inserted[0]
     if checked is not None and archive is not None:
         await store_skill_file(conn, caller.tenant_id, checked, archive)
-        await _insert_skill_row(conn, caller.tenant_id, resource_id, version_id, checked.content_sha256)
+        await _insert_skill_row(
+            conn, caller.tenant_id, resource_id, version_id, checked.content_sha256
+        )
     else:
         assert source is not None
         await _copy_subtype(conn, resource, source["id"], version_id)
@@ -283,7 +317,12 @@ async def replace_draft(
     if version["status"] != "draft":
         raise ApiError(409, "version_immutable", "published versions cannot be edited")
     checked, problems = validated_subtype(
-        {"type": resource["type"], "slug": resource["slug"], "spec": spec, "archive": archive}
+        {
+            "type": resource["type"],
+            "slug": resource["slug"],
+            "spec": spec,
+            "archive": archive,
+        }
     )
     if problems:
         raise validation_failed(problems)
@@ -301,19 +340,27 @@ async def replace_draft(
     else:
         assert spec is not None
         if resource["type"] == AGENT:
-            await conn.execute("DELETE FROM agents WHERE version_id = %s", (version["id"],))
+            await conn.execute(
+                "DELETE FROM agents WHERE version_id = %s", (version["id"],)
+            )
         else:
             await delete_generic_spec(conn, resource["type"], version["id"])
-        await insert_spec(conn, resource["type"], caller.tenant_id, resource_id, version["id"], spec)
+        await insert_spec(
+            conn, resource["type"], caller.tenant_id, resource_id, version["id"], spec
+        )
     return await _view(conn, resource, version, True)
 
 
-async def delete_version(conn: AsyncConnection, caller: Caller, resource_id: UUID, n: int) -> None:
+async def delete_version(
+    conn: AsyncConnection, caller: Caller, resource_id: UUID, n: int
+) -> None:
     resource = await lock_for_edit(conn, caller, resource_id)
     version = await require_version(conn, resource_id, n)
     if version["id"] == resource["current_version_id"]:
         raise ApiError(
-            409, "version_is_current", f"v{n} is the current version; repoint current first"
+            409,
+            "version_is_current",
+            f"v{n} is the current version; repoint current first",
         )
     try:
         await delete_version_rows(conn, caller.tenant_id, version["id"])

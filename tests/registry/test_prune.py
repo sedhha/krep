@@ -35,13 +35,17 @@ BASE = "/v1/registry"
 
 async def retained(conn: psycopg.AsyncConnection, rid: uuid.UUID) -> list[int]:
     cur = await conn.execute(
-        "SELECT version FROM registry_versions WHERE registry_id = %s ORDER BY version", (rid,)
+        "SELECT version FROM registry_versions WHERE registry_id = %s ORDER BY version",
+        (rid,),
     )
     return [r[0] for r in await cur.fetchall()]
 
 
 async def add_dep(
-    conn: psycopg.AsyncConnection, tenant: uuid.UUID, version_id: uuid.UUID, on: uuid.UUID
+    conn: psycopg.AsyncConnection,
+    tenant: uuid.UUID,
+    version_id: uuid.UUID,
+    on: uuid.UUID,
 ) -> None:
     await conn.execute(
         "INSERT INTO registry_version_deps (version_id, depends_on_version_id, tenant_id, "
@@ -62,7 +66,10 @@ async def test_ac15_eleventh_publish_deletes_oldest_non_current_version(
     out = await publish(conn, caller, rid, 11)
     assert out["pruned_versions"] == [1]
     assert await retained(conn, rid) == list(range(2, 12))
-    assert await scalar(conn, "SELECT count(*) FROM agents WHERE registry_id = %s", rid) == 10
+    assert (
+        await scalar(conn, "SELECT count(*) FROM agents WHERE registry_id = %s", rid)
+        == 10
+    )
 
 
 async def test_prune_skips_the_current_version(
@@ -97,7 +104,9 @@ async def test_ac15_pinned_oldest_version_is_409_version_in_use_and_nothing_chan
     target = await new_agent(conn, caller, "target-agent")
     await publish_agent_versions(conn, caller, target, 10)
     source = await new_agent(conn, caller, "support-bot")
-    link_id = await link_pin(conn, tenant, source, target, await version_id_of(conn, target, 1))
+    link_id = await link_pin(
+        conn, tenant, source, target, await version_id_of(conn, target, 1)
+    )
     await create_draft(conn, caller, target)
     await replace_draft(conn, caller, target, 11, spec=spec_with("eleven"))
     with pytest.raises(ApiError) as exc:
@@ -106,12 +115,24 @@ async def test_ac15_pinned_oldest_version_is_409_version_in_use_and_nothing_chan
     assert (err.status, err.error) == (409, "version_in_use")
     assert err.extra["version_to_remove"] == 1
     assert err.extra["referenced_by"] == [
-        {"kind": "link_pin", "resource": "support-bot", "resource_id": str(source), "link_id": str(link_id)}
+        {
+            "kind": "link_pin",
+            "resource": "support-bot",
+            "resource_id": str(source),
+            "link_id": str(link_id),
+        }
     ]
     assert "v11" in err.message
     assert "v1" in err.message
     assert await retained(conn, target) == list(range(1, 12))
-    assert await scalar(conn, "SELECT status FROM registry_versions WHERE registry_id = %s AND version = 11", target) == "draft"
+    assert (
+        await scalar(
+            conn,
+            "SELECT status FROM registry_versions WHERE registry_id = %s AND version = 11",
+            target,
+        )
+        == "draft"
+    )
     cur = await conn.execute(
         "SELECT v.version FROM registry r JOIN registry_versions v ON v.id = r.current_version_id WHERE r.id = %s",
         (target,),
@@ -128,14 +149,22 @@ async def test_ac15_version_depended_on_by_another_version_is_409_with_version_d
     dependant = await new_agent(conn, caller, "billing-agent")
     await publish_agent_versions(conn, caller, dependant, 7)
     await add_dep(
-        conn, tenant, await version_id_of(conn, dependant, 7), await version_id_of(conn, target, 1)
+        conn,
+        tenant,
+        await version_id_of(conn, dependant, 7),
+        await version_id_of(conn, target, 1),
     )
     await create_draft(conn, caller, target)
     with pytest.raises(ApiError) as exc:
         await publish(conn, caller, target, 11)
     assert exc.value.error == "version_in_use"
     assert exc.value.extra["referenced_by"] == [
-        {"kind": "version_dep", "resource": "billing-agent", "resource_id": str(dependant), "version": 7}
+        {
+            "kind": "version_dep",
+            "resource": "billing-agent",
+            "resource_id": str(dependant),
+            "version": 7,
+        }
     ]
     assert await retained(conn, target) == list(range(1, 12))
 
@@ -245,7 +274,12 @@ async def test_parallel_publishes_of_the_same_resource_serialise(
     )
     async with tenant_transaction(pool, tenant) as check:
         assert await retained(check, rid) == [3, 4, 5]
-        assert await scalar(check, "SELECT count(*) FROM agents WHERE registry_id = %s", rid) == 3
+        assert (
+            await scalar(
+                check, "SELECT count(*) FROM agents WHERE registry_id = %s", rid
+            )
+            == 3
+        )
 
 
 async def test_api_delete_version_conflicts_and_success(

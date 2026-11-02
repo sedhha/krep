@@ -55,7 +55,10 @@ def agent_errors(**changes: Any) -> dict[str, str]:
 
 
 def field_errors(**changes: Any) -> dict[str, str]:
-    return {e.field: e.message for e in validate_resource_fields(**{**VALID_FIELDS, **changes})}
+    return {
+        e.field: e.message
+        for e in validate_resource_fields(**{**VALID_FIELDS, **changes})
+    }
 
 
 def test_validators_hold_agent_only() -> None:
@@ -104,7 +107,9 @@ def test_agent_unparsable_cel_fails_with_indexed_path() -> None:
 
 
 def test_agent_hitl_rule_shape() -> None:
-    errors = agent_errors(hitl_rules=[{"action": "x"}, "nope", {"when": "a", "action": ""}])
+    errors = agent_errors(
+        hitl_rules=[{"action": "x"}, "nope", {"when": "a", "action": ""}]
+    )
     assert set(errors) == {
         "spec.hitl_rules[0].when",
         "spec.hitl_rules[1]",
@@ -155,7 +160,9 @@ def test_name_rule(name: str, ok: bool) -> None:
     assert ("name" not in field_errors(name=name)) is ok
 
 
-@pytest.mark.parametrize(("description", "ok"), [("", True), ("x" * 2000, True), ("x" * 2001, False)])
+@pytest.mark.parametrize(
+    ("description", "ok"), [("", True), ("x" * 2000, True), ("x" * 2001, False)]
+)
 def test_description_rule(description: str, ok: bool) -> None:
     assert ("description" not in field_errors(description=description)) is ok
 
@@ -167,7 +174,14 @@ def test_tags_limit_is_twenty() -> None:
 
 @pytest.mark.parametrize(
     ("tag", "ok"),
-    [("billing", True), ("a" * 32, True), ("a" * 33, False), ("Billing", False), ("-a", False), ("", False)],
+    [
+        ("billing", True),
+        ("a" * 32, True),
+        ("a" * 33, False),
+        ("Billing", False),
+        ("-a", False),
+        ("", False),
+    ],
 )
 def test_tag_rule_names_the_offending_index(tag: str, ok: bool) -> None:
     errors = field_errors(tags=["fine", tag])
@@ -185,7 +199,12 @@ def test_unknown_visibility_fails() -> None:
 
 def test_restricted_requires_policy_id() -> None:
     assert "policy_id" in field_errors(visibility="restricted", policy_id=None)
-    assert field_errors(visibility="restricted", policy_id="7b0d6f3e-0000-4000-8000-000000000000") == {}
+    assert (
+        field_errors(
+            visibility="restricted", policy_id="7b0d6f3e-0000-4000-8000-000000000000"
+        )
+        == {}
+    )
 
 
 def test_meta_must_be_object() -> None:
@@ -204,7 +223,10 @@ def test_meta_limit_counts_utf8_bytes() -> None:
 
 
 def test_canonical_json_sorts_keys_without_whitespace() -> None:
-    assert canonical_json({"b": 1, "a": {"d": [1, 2], "c": "é"}}) == '{"a":{"c":"é","d":[1,2]},"b":1}'.encode()
+    assert (
+        canonical_json({"b": 1, "a": {"d": [1, 2], "c": "é"}})
+        == '{"a":{"c":"é","d":[1,2]},"b":1}'.encode()
+    )
 
 
 def test_hash_ignores_key_order() -> None:
@@ -223,7 +245,11 @@ def test_hash_changes_with_any_change() -> None:
 
 def test_hash_is_sha256_of_canonical_type_and_spec() -> None:
     expected = hashlib.sha256(
-        json.dumps({"type": "agent", "spec": VALID_AGENT}, sort_keys=True, separators=(",", ":")).encode()
+        json.dumps(
+            {"type": "agent", "spec": VALID_AGENT},
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode()
     ).hexdigest()
     assert content_hash("agent", VALID_AGENT) == expected
 

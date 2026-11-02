@@ -26,7 +26,10 @@ def nested_not(depth: int) -> dict[str, Any]:
 
 def test_validate_returns_node_count() -> None:
     assert validate_ast(has("a")) == 1
-    assert validate_ast({"op": "and", "args": [has("a"), {"op": "not", "arg": has("b")}]}) == 4
+    assert (
+        validate_ast({"op": "and", "args": [has("a"), {"op": "not", "arg": has("b")}]})
+        == 4
+    )
 
 
 def test_depth_8_accepted_and_9_rejected() -> None:
@@ -142,19 +145,67 @@ def test_exceptions_share_a_base() -> None:
         {"op": "not", "arg": None},
         {"op": "and", "args": "x"},
         {"op": "and", "args": [None]},
-        {"op": "cmp", "path": {"root": "token", "segments": ["a"]}, "cmp": "=~", "value": {"lit": 1}},
-        {"op": "cmp", "path": {"root": "token", "segments": ["a"]}, "cmp": "==", "value": 1},
-        {"op": "cmp", "path": {"root": "token", "segments": ["a"]}, "cmp": "==", "value": {"lit": [1]}},
-        {"op": "cmp", "path": {"root": "token", "segments": ["a"]}, "cmp": "==", "value": {"lit": {"a": 1}}},
-        {"op": "cmp", "path": {"root": "token", "segments": ["a"]}, "cmp": "==", "value": {"lit": 1, "var": "tenant_id"}},
-        {"op": "cmp", "path": {"root": "token", "segments": ["a"]}, "cmp": "==", "value": {"var": "other"}},
-        {"op": "cmp", "path": {"root": "token", "segments": ["a"]}, "cmp": "==", "value": {"lit": float("inf")}},
-        {"op": "cmp", "path": {"root": "token", "segments": ["a"]}, "cmp": "==", "value": {"lit": float("nan")}},
+        {
+            "op": "cmp",
+            "path": {"root": "token", "segments": ["a"]},
+            "cmp": "=~",
+            "value": {"lit": 1},
+        },
+        {
+            "op": "cmp",
+            "path": {"root": "token", "segments": ["a"]},
+            "cmp": "==",
+            "value": 1,
+        },
+        {
+            "op": "cmp",
+            "path": {"root": "token", "segments": ["a"]},
+            "cmp": "==",
+            "value": {"lit": [1]},
+        },
+        {
+            "op": "cmp",
+            "path": {"root": "token", "segments": ["a"]},
+            "cmp": "==",
+            "value": {"lit": {"a": 1}},
+        },
+        {
+            "op": "cmp",
+            "path": {"root": "token", "segments": ["a"]},
+            "cmp": "==",
+            "value": {"lit": 1, "var": "tenant_id"},
+        },
+        {
+            "op": "cmp",
+            "path": {"root": "token", "segments": ["a"]},
+            "cmp": "==",
+            "value": {"var": "other"},
+        },
+        {
+            "op": "cmp",
+            "path": {"root": "token", "segments": ["a"]},
+            "cmp": "==",
+            "value": {"lit": float("inf")},
+        },
+        {
+            "op": "cmp",
+            "path": {"root": "token", "segments": ["a"]},
+            "cmp": "==",
+            "value": {"lit": float("nan")},
+        },
         {"op": "member", "path": {"root": "token", "segments": ["a"]}},
         {"op": "in_list", "path": {"root": "token", "segments": ["a"]}, "values": "x"},
         {"op": "in_list", "path": {"root": "token", "segments": ["a"]}, "values": [1]},
-        {"op": "starts_with", "path": {"root": "token", "segments": ["a"]}, "value": {"lit": 1}},
-        {"op": "ends_with", "path": {"root": "token", "segments": ["a"]}, "value": {"var": "tenant_id"}},
+        {
+            "op": "starts_with",
+            "path": {"root": "token", "segments": ["a"]},
+            "value": {"lit": 1},
+        },
+        {
+            "op": "ends_with",
+            "path": {"root": "token", "segments": ["a"]},
+            "value": {"var": "tenant_id"},
+        },
     ],
 )
 def test_malformed_api_ast_is_rejected(ast: Any) -> None:

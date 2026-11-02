@@ -48,7 +48,9 @@ async def test_seed_global_limits(owner_conn: AsyncConnection) -> None:
 
 
 @pytest.mark.parametrize("table", ["registry_types", "link_rules", "resource_limits"])
-async def test_seed_is_removed_on_downgrade_of_0004(scratch_db: str, table: str) -> None:
+async def test_seed_is_removed_on_downgrade_of_0004(
+    scratch_db: str, table: str
+) -> None:
     alembic(scratch_db, "upgrade", "head")
     alembic(scratch_db, "downgrade", "0003")
     with psycopg.connect(role_url("krep_owner", scratch_db)) as conn:

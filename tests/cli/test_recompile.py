@@ -9,7 +9,10 @@ from krep.policy.compile import COMPILER_VERSION
 from tests.cli.test_tenant_init import init
 from tests.conftest import role_url
 
-TENANTS = ("00000000-0000-4000-8000-0000000000c1", "00000000-0000-4000-8000-0000000000c2")
+TENANTS = (
+    "00000000-0000-4000-8000-0000000000c1",
+    "00000000-0000-4000-8000-0000000000c2",
+)
 ADMIN_PATH = 'exists($."token"."groups"[*] ? (@ == "grc-admins"))'
 STALE_PATH = '$."stale"'
 

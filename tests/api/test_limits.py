@@ -15,7 +15,9 @@ from tests.api.conftest import OwnerExec, Pool
 
 
 @pytest_asyncio.fixture
-async def limits_client(pool: Pool, tenant_id: uuid.UUID) -> AsyncIterator[httpx.AsyncClient]:
+async def limits_client(
+    pool: Pool, tenant_id: uuid.UUID
+) -> AsyncIterator[httpx.AsyncClient]:
     app = FastAPI()
     app.state.pool = pool
     install_error_handlers(app)
@@ -25,7 +27,9 @@ async def limits_client(pool: Pool, tenant_id: uuid.UUID) -> AsyncIterator[httpx
         return Caller(tenant_id, "u1", {"token": {}, "principal": {}}, False, False)
 
     app.dependency_overrides[get_caller] = caller
-    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://t") as c:
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://t"
+    ) as c:
         yield c
 
 
@@ -38,7 +42,9 @@ async def test_global_seed_value_is_returned(pool: Pool, tenant_id: uuid.UUID) -
     assert await lookup(pool, tenant_id, "max_drafts", resource_type="agent") == 50
 
 
-async def test_unknown_key_raises_lookup_error(pool: Pool, tenant_id: uuid.UUID) -> None:
+async def test_unknown_key_raises_lookup_error(
+    pool: Pool, tenant_id: uuid.UUID
+) -> None:
     async with tenant_transaction(pool, tenant_id) as conn:
         try:
             await get_limit(conn, tenant_id=tenant_id, key="nope")
@@ -120,7 +126,9 @@ async def test_effective_limits_for_a_tenant_without_overrides(
     assert result["types"] == {}
 
 
-async def test_get_registry_types_lists_seeded_types(limits_client: httpx.AsyncClient) -> None:
+async def test_get_registry_types_lists_seeded_types(
+    limits_client: httpx.AsyncClient,
+) -> None:
     resp = await limits_client.get("/v1/registry/types")
     assert resp.status_code == 200
     assert [t["type"] for t in resp.json()["types"]] == ["agent", "skill"]

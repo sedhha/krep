@@ -28,7 +28,9 @@ class FieldError:
 
 
 def canonical_json(obj: Any) -> bytes:
-    return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+    return json.dumps(
+        obj, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    ).encode()
 
 
 def content_hash(type: str, spec: dict[str, Any]) -> str:
@@ -74,7 +76,9 @@ def _hitl_rules(spec: dict[str, Any], errors: list[FieldError]) -> None:
         item = cast("dict[str, Any]", rule)
         when = item.get("when")
         if not isinstance(when, str) or not when.strip():
-            errors.append(FieldError(f"{path}.when", "required non-empty CEL expression"))
+            errors.append(
+                FieldError(f"{path}.when", "required non-empty CEL expression")
+            )
         else:
             try:
                 _CEL.compile(when)
@@ -124,7 +128,9 @@ def validate_resource_fields(
     if not 1 <= len(name) <= MAX_NAME:
         errors.append(FieldError("name", f"must be 1-{MAX_NAME} characters"))
     if len(description) > MAX_DESCRIPTION:
-        errors.append(FieldError("description", f"must be at most {MAX_DESCRIPTION} characters"))
+        errors.append(
+            FieldError("description", f"must be at most {MAX_DESCRIPTION} characters")
+        )
     if len(tags) > MAX_TAGS:
         errors.append(FieldError("tags", f"at most {MAX_TAGS} tags"))
     errors.extend(
@@ -133,7 +139,9 @@ def validate_resource_fields(
         if not TAG_RE.fullmatch(tag)
     )
     if visibility not in VISIBILITIES:
-        errors.append(FieldError("visibility", f"must be one of {', '.join(VISIBILITIES)}"))
+        errors.append(
+            FieldError("visibility", f"must be one of {', '.join(VISIBILITIES)}")
+        )
     elif visibility == "restricted" and policy_id is None:
         errors.append(FieldError("policy_id", "required when visibility is restricted"))
     if not isinstance(meta, dict):

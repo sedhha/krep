@@ -15,7 +15,9 @@ from krep.registry.skill_archive import (
     validate_skill_archive,
 )
 
-SKILL_MD = "---\nname: refund-flow\ndescription: Handles refunds.\n---\n# Refunds\nBody.\n"
+SKILL_MD = (
+    "---\nname: refund-flow\ndescription: Handles refunds.\n---\n# Refunds\nBody.\n"
+)
 
 
 def zip_bytes(
@@ -32,7 +34,10 @@ def zip_bytes(
 
 
 def skill_md(**fields: str | None) -> str:
-    values: dict[str, str | None] = {"name": "refund-flow", "description": "Handles refunds."}
+    values: dict[str, str | None] = {
+        "name": "refund-flow",
+        "description": "Handles refunds.",
+    }
     values.update(fields)
     lines = [f"{k}: {v}" for k, v in values.items() if v is not None]
     return "---\n" + "\n".join(lines) + "\n---\n# Body\n"
@@ -80,7 +85,11 @@ def test_extra_files_and_nested_directories_pass() -> None:
 
 def test_directory_entries_are_ignored() -> None:
     data = zip_bytes(
-        {"refund-flow/": b"", "refund-flow/SKILL.md": SKILL_MD, "refund-flow/scripts/": b""}
+        {
+            "refund-flow/": b"",
+            "refund-flow/SKILL.md": SKILL_MD,
+            "refund-flow/scripts/": b"",
+        }
     )
     assert validate_skill_archive(data, "refund-flow")[1] == []
 
@@ -113,7 +122,9 @@ def test_body_of_500_lines_has_no_warning() -> None:
     assert parsed.warnings == []
 
 
-@pytest.mark.parametrize("data", [b"", b"not a zip at all", b"PK\x03\x04" + b"garbage" * 10])
+@pytest.mark.parametrize(
+    "data", [b"", b"not a zip at all", b"PK\x03\x04" + b"garbage" * 10]
+)
 def test_not_a_zip(data: bytes) -> None:
     assert fields(data) == ["archive"]
 
@@ -124,7 +135,10 @@ def test_empty_zip_is_rejected() -> None:
 
 def test_zip_over_one_mib_is_rejected() -> None:
     data = zip_bytes(
-        {"refund-flow/SKILL.md": SKILL_MD, "refund-flow/blob.bin": os.urandom(MAX_ZIP_BYTES)}
+        {
+            "refund-flow/SKILL.md": SKILL_MD,
+            "refund-flow/blob.bin": os.urandom(MAX_ZIP_BYTES),
+        }
     )
     assert len(data) > MAX_ZIP_BYTES
     assert fields(data) == ["archive"]
@@ -201,7 +215,10 @@ def test_invalid_names(name: str) -> None:
 
 def test_name_of_64_chars_passes() -> None:
     name = "a" * 64
-    assert validate_skill_archive(archive(skill_md(name=name), directory=name), name)[1] == []
+    assert (
+        validate_skill_archive(archive(skill_md(name=name), directory=name), name)[1]
+        == []
+    )
 
 
 def test_name_is_required() -> None:
@@ -262,7 +279,11 @@ def test_unsafe_paths(name: str) -> None:
 
 def test_duplicate_names_case_insensitive() -> None:
     data = zip_bytes(
-        {"refund-flow/SKILL.md": SKILL_MD, "refund-flow/a.txt": "1", "refund-flow/A.TXT": "2"}
+        {
+            "refund-flow/SKILL.md": SKILL_MD,
+            "refund-flow/a.txt": "1",
+            "refund-flow/A.TXT": "2",
+        }
     )
     assert fields(data) == ["archive"]
 
@@ -284,11 +305,16 @@ def test_symlink_entry_is_rejected() -> None:
 
 
 def test_encrypted_entry_is_rejected() -> None:
-    data = bytearray(zip_bytes({"refund-flow/SKILL.md": SKILL_MD, "refund-flow/secret.txt": "x"}))
+    data = bytearray(
+        zip_bytes({"refund-flow/SKILL.md": SKILL_MD, "refund-flow/secret.txt": "x"})
+    )
     offset = data.index(b"PK\x01\x02")
     while offset != -1:
         name_len = struct.unpack_from("<H", data, offset + 28)[0]
-        if data[offset + 46 : offset + 46 + name_len] == b"refund-flow/secret.txt":
+        if (
+            bytes(data[offset + 46 : offset + 46 + name_len])
+            == b"refund-flow/secret.txt"
+        ):
             data[offset + 8] |= 0x1
         offset = data.find(b"PK\x01\x02", offset + 4)
     assert fields(bytes(data)) == ["archive"]
@@ -338,7 +364,9 @@ def test_zip_bomb_spread_across_entries_is_rejected() -> None:
 
 def test_zip_bomb_with_lying_declared_size_is_rejected() -> None:
     size = MAX_UNCOMPRESSED_BYTES + 1024
-    data = zip_bytes({"refund-flow/SKILL.md": SKILL_MD, "refund-flow/pad.bin": b"\0" * size})
+    data = zip_bytes(
+        {"refund-flow/SKILL.md": SKILL_MD, "refund-flow/pad.bin": b"\0" * size}
+    )
     lying = data.replace(struct.pack("<I", size), struct.pack("<I", 10))
     assert lying != data
     assert fields(lying) == ["archive"]

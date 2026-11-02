@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, cast
 
 import pytest
 
@@ -35,7 +35,9 @@ async def test_missing_exp(keys: Keys, jwks: dict[str, Any]) -> None:
 
 
 async def test_issuer_claim_must_match_row(keys: Keys, jwks: dict[str, Any]) -> None:
-    await assert_unauthenticated(keys.sign(claims(iss="https://evil.example.com/")), issuer_row())
+    await assert_unauthenticated(
+        keys.sign(claims(iss="https://evil.example.com/")), issuer_row()
+    )
 
 
 async def test_disabled_issuer(keys: Keys, jwks: dict[str, Any]) -> None:
@@ -45,7 +47,9 @@ async def test_disabled_issuer(keys: Keys, jwks: dict[str, Any]) -> None:
 async def test_alg_none(keys: Keys, jwks: dict[str, Any]) -> None:
     import jwt
 
-    token = jwt.encode(claims(), None, algorithm="none", headers={"kid": keys.kid})
+    token = jwt.encode(
+        claims(), cast("Any", None), algorithm="none", headers={"kid": keys.kid}
+    )
     await assert_unauthenticated(token, issuer_row())
 
 

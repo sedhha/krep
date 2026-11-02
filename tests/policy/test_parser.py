@@ -292,7 +292,19 @@ def test_empty_bracket_key_is_rejected() -> None:
 
 
 @pytest.mark.parametrize(
-    "key", ["in", "has", "true", "false", "null", "var", "token", "principal", "startsWith", "endsWith"]
+    "key",
+    [
+        "in",
+        "has",
+        "true",
+        "false",
+        "null",
+        "var",
+        "token",
+        "principal",
+        "startsWith",
+        "endsWith",
+    ],
 )
 def test_reserved_words_as_keys(key: str) -> None:
     assert parse(f"token.{key} == 1")["path"]["segments"] == [key]
@@ -334,7 +346,7 @@ def test_in_keyword_needs_separation() -> None:
         "token.a == token.b",
         "token.a == principal.b",
         "token.a < token.b",
-        'token.a in token.b',
+        "token.a in token.b",
         'token.a == "x" # comment',
         'token.a == "x" // comment',
         'token.a == "x" /* c */',
@@ -354,9 +366,9 @@ def test_in_keyword_needs_separation() -> None:
         "other.a == 1",
         "var.other == 1",
         "token.a == var.tenant",
-        'token.a.startsWith(1)',
-        'token.a.startsWith(token.b)',
-        'token.a.startsWith()',
+        "token.a.startsWith(1)",
+        "token.a.startsWith(token.b)",
+        "token.a.startsWith()",
         'token.a.contains("x")',
         'token.a.startsWith("x") == true',
         "has()",

@@ -15,7 +15,16 @@ POLICIES = (
 
 def init(tenant: str, admin: str = ADMIN_RULE, writer: str = WRITER_RULE) -> int:
     return main(
-        ["tenant", "init", "--tenant", tenant, "--admin-rule", admin, "--writer-rule", writer]
+        [
+            "tenant",
+            "init",
+            "--tenant",
+            tenant,
+            "--admin-rule",
+            admin,
+            "--writer-rule",
+            writer,
+        ]
     )
 
 
@@ -65,7 +74,7 @@ def test_tenant_init_isolates_tenants(
     other = "00000000-0000-4000-8000-0000000000b2"
     assert init(tenant) == 0
     assert init(other, admin='token.groups == "other-admins"') == 0
-    assert query("SELECT source FROM access_policies WHERE tenant_id = %s AND name = 'registry-admins'", other) == [
-        ('token.groups == "other-admins"',)
-    ]
-
+    assert query(
+        "SELECT source FROM access_policies WHERE tenant_id = %s AND name = 'registry-admins'",
+        other,
+    ) == [('token.groups == "other-admins"',)]

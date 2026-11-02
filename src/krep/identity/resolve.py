@@ -64,15 +64,14 @@ async def _permissions(
         )
         paths = {name: path for name, path in await cursor.fetchall()}
         satisfied = {
-            name: await evaluate(conn, path, doc, tenant_id) for name, path in paths.items()
+            name: await evaluate(conn, path, doc, tenant_id)
+            for name, path in paths.items()
         }
     can_admin = satisfied.get(ADMINS_POLICY, False)
     return can_admin or satisfied.get(WRITERS_POLICY, False), can_admin
 
 
-async def _from_api_key(
-    pool: Pool, key: str, principal_header: str | None
-) -> Resolved:
+async def _from_api_key(pool: Pool, key: str, principal_header: str | None) -> Resolved:
     digest = hashlib.sha256(key.encode()).digest()
     async with pool.connection() as conn, conn.cursor(row_factory=dict_row) as cur:
         await cur.execute(
@@ -105,7 +104,9 @@ async def _from_jwt(pool: Pool, token: str, principal_header: str | None) -> Res
     if row is None:
         raise _unauthenticated()
     claims = await verify_token(token, row)
-    tenant_id = row["tenant_id"] or _tenant_from_claims(claims, row["tenant_claim_path"])
+    tenant_id = row["tenant_id"] or _tenant_from_claims(
+        claims, row["tenant_claim_path"]
+    )
     machine = row["allow_principal"]
     principal = decode_principal(principal_header) if machine else None
     if principal:
@@ -132,12 +133,16 @@ async def resolve_caller(pool: Pool, headers: Mapping[str, str]) -> Caller:
     principal_header = headers.get("x-principal")
     api_key = headers.get("x-api-key")
     if api_key:
-        tenant_id, user_id, token, principal = await _from_api_key(pool, api_key, principal_header)
+        tenant_id, user_id, token, principal = await _from_api_key(
+            pool, api_key, principal_header
+        )
     else:
         bearer = _bearer(headers)
         if bearer is None:
             raise _unauthenticated()
-        tenant_id, user_id, token, principal = await _from_jwt(pool, bearer, principal_header)
+        tenant_id, user_id, token, principal = await _from_jwt(
+            pool, bearer, principal_header
+        )
     doc = {"token": token, "principal": principal}
     can_write, can_admin = await _permissions(pool, tenant_id, doc)
     return Caller(tenant_id, user_id, doc, can_write, can_admin)

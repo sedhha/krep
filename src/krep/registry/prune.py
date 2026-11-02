@@ -54,20 +54,26 @@ async def version_in_use(conn: AsyncConnection, version_id: UUID) -> list[Referr
     return referrers
 
 
-async def delete_version_rows(conn: AsyncConnection, tenant_id: UUID, version_id: UUID) -> None:
+async def delete_version_rows(
+    conn: AsyncConnection, tenant_id: UUID, version_id: UUID
+) -> None:
     cur = await conn.execute(
         "SELECT content_sha256 FROM skills WHERE version_id = %s", (version_id,)
     )
     hashes = [r[0] for r in await cur.fetchall()]
     try:
         async with conn.transaction():
-            await conn.execute("DELETE FROM registry_versions WHERE id = %s", (version_id,))
+            await conn.execute(
+                "DELETE FROM registry_versions WHERE id = %s", (version_id,)
+            )
     except errors.ForeignKeyViolation:
         raise VersionInUse(await version_in_use(conn, version_id)) from None
     await release_skill_files(conn, tenant_id, hashes)
 
 
-async def prune_for_publish(conn: AsyncConnection, resource: Row, incoming: int) -> list[int]:
+async def prune_for_publish(
+    conn: AsyncConnection, resource: Row, incoming: int
+) -> list[int]:
     limit = await get_limit(
         conn,
         tenant_id=resource["tenant_id"],

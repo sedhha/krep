@@ -34,7 +34,9 @@ class Keys:
         jwk: dict[str, Any] = json.loads(RSAAlgorithm.to_jwk(self.private.public_key()))
         self.jwk: dict[str, Any] = {**jwk, "kid": kid, "use": "sig", "alg": "RS256"}
 
-    def sign(self, claims: dict[str, Any], alg: str = "RS256", kid: str | None = None) -> str:
+    def sign(
+        self, claims: dict[str, Any], alg: str = "RS256", kid: str | None = None
+    ) -> str:
         return jwt.encode(
             claims, self.private, algorithm=alg, headers={"kid": kid or self.kid}
         )
@@ -90,7 +92,9 @@ def b64url(value: Any) -> str:
 
 @pytest_asyncio.fixture
 async def pool(migrated_db: str) -> AsyncIterator[AsyncConnectionPool[AsyncConnection]]:
-    settings = Settings(database_url=role_url("krep_app", migrated_db), migration_database_url="")
+    settings = Settings(
+        database_url=role_url("krep_app", migrated_db), migration_database_url=""
+    )
     async with await open_pool(settings, min_size=1, max_size=2) as pool:
         yield pool
 
@@ -117,8 +121,13 @@ def add_issuer(
             "INSERT INTO token_issuers (issuer, audience, jwks_uri, tenant_id, tenant_claim_path, "
             "user_claim_path, allow_principal, enabled) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
             (
-                row["issuer"], row["audience"], row["jwks_uri"], row["tenant_id"],
-                row["tenant_claim_path"], row["user_claim_path"], row["allow_principal"],
+                row["issuer"],
+                row["audience"],
+                row["jwks_uri"],
+                row["tenant_id"],
+                row["tenant_claim_path"],
+                row["user_claim_path"],
+                row["allow_principal"],
                 row["enabled"],
             ),
         )
@@ -134,7 +143,9 @@ def add_api_key(
     import hashlib
 
     async def add(
-        tenant_id: uuid.UUID | None = None, allow_principal: bool = False, revoked: bool = False
+        tenant_id: uuid.UUID | None = None,
+        allow_principal: bool = False,
+        revoked: bool = False,
     ) -> tuple[str, uuid.UUID, uuid.UUID]:
         tenant = tenant_id or uuid.uuid4()
         key_id = uuid.uuid4()
@@ -142,7 +153,13 @@ def add_api_key(
         await owner_exec(
             "INSERT INTO api_keys (id, tenant_id, name, key_hash, allow_principal, revoked_at) "
             "VALUES (%s, %s, 'k', %s, %s, CASE WHEN %s THEN now() END)",
-            (key_id, tenant, hashlib.sha256(key.encode()).digest(), allow_principal, revoked),
+            (
+                key_id,
+                tenant,
+                hashlib.sha256(key.encode()).digest(),
+                allow_principal,
+                revoked,
+            ),
         )
         return key, key_id, tenant
 
@@ -150,7 +167,9 @@ def add_api_key(
 
 
 @pytest.fixture
-def add_policy(pool: AsyncConnectionPool[AsyncConnection]) -> Callable[..., Awaitable[None]]:
+def add_policy(
+    pool: AsyncConnectionPool[AsyncConnection],
+) -> Callable[..., Awaitable[None]]:
     async def add(tenant_id: uuid.UUID, name: str, rule: str) -> None:
         ast = parse(rule)
         from psycopg.types.json import Jsonb
@@ -160,7 +179,14 @@ def add_policy(pool: AsyncConnectionPool[AsyncConnection]) -> Callable[..., Awai
                 "INSERT INTO access_policies (tenant_id, name, ast, source, compiled_path, "
                 "compiler_version, reserved, created_by, updated_by) "
                 "VALUES (%s, %s, %s, %s, %s::jsonpath, %s, true, 'ops', 'ops')",
-                (tenant_id, name, Jsonb(ast), to_source(ast), compile_ast(ast), COMPILER_VERSION),
+                (
+                    tenant_id,
+                    name,
+                    Jsonb(ast),
+                    to_source(ast),
+                    compile_ast(ast),
+                    COMPILER_VERSION,
+                ),
             )
 
     return add

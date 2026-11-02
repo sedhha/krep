@@ -33,14 +33,14 @@ WITH sat AS MATERIALIZED (
 _RANKED = (
     _VISIBLE
     + """
-, lex AS (
+, lex AS MATERIALIZED (
   SELECT id, row_number() OVER (ORDER BY rank DESC, id) AS rnk FROM (
     SELECT v.id, ts_rank_cd(v.search_tsv, q) AS rank
     FROM visible v, to_tsquery('english', %(tsq)s) q
     WHERE v.search_tsv @@ q
     ORDER BY rank DESC, v.id LIMIT 50
   ) s
-), fuzzy AS (
+), fuzzy AS MATERIALIZED (
   SELECT id, row_number() OVER (ORDER BY sim DESC, id) AS rnk FROM (
     SELECT v.id, word_similarity(%(q_norm)s, v.name) AS sim
     FROM visible v
@@ -48,11 +48,11 @@ _RANKED = (
     ORDER BY sim DESC, v.id LIMIT 50
   ) s
 )
-SELECT v.id,
+SELECT c.id,
        (COALESCE(1.0 / (60 + lex.rnk), 0) + COALESCE(1.0 / (60 + fuzzy.rnk), 0))::float8 AS score
-FROM visible v LEFT JOIN lex ON lex.id = v.id LEFT JOIN fuzzy ON fuzzy.id = v.id
-WHERE lex.id IS NOT NULL OR fuzzy.id IS NOT NULL
-ORDER BY score DESC, v.id
+FROM (SELECT id FROM lex UNION SELECT id FROM fuzzy) c
+LEFT JOIN lex ON lex.id = c.id LEFT JOIN fuzzy ON fuzzy.id = c.id
+ORDER BY score DESC, c.id
 LIMIT %(limit)s OFFSET %(offset)s
 """
 )
@@ -115,7 +115,9 @@ async def registry_search(
         if not q_norm and tsq is None:
             return []
         params |= {"q_norm": q_norm, "tsq": tsq}
-        await conn.execute("SELECT set_config('pg_trgm.word_similarity_threshold', '0.3', true)")
+        await conn.execute(
+            "SELECT set_config('pg_trgm.word_similarity_threshold', '0.3', true)"
+        )
     async with conn.cursor(row_factory=dict_row) as cur:
         await cur.execute(_LISTED if listing else _RANKED, params)
         ranked = await cur.fetchall()
