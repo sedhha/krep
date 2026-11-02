@@ -17,7 +17,7 @@ Status: `todo` | `in-progress` | `in-review` | `done` (with commit hash)
 | 11 | [Resources: create, list, get, patch, archive, delete](T11-resources.md) | done | decb1d4 |
 | 12 | [Versions: drafts, publish, retention, current](T12-versions-publish.md) | done | d3ff955 |
 | 13 | [Search query builder and registry_search()](T13-search-core.md) | done | acefc70 |
-| 14 | [Search API, synonyms, zero-result metric](T14-search-api-synonyms.md) | todo | |
+| 14 | [Search API, synonyms, zero-result metric](T14-search-api-synonyms.md) | done | 88aa83b |
 | 15 | [Links: rules, acceptance, cycles, freezing](T15-links.md) | todo | |
 | 16 | [Bundle resolution](T16-bundle.md) | todo | |
 | 17 | [Uploads and skill resources](T17-uploads.md) | todo | |
