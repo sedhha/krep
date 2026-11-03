@@ -80,9 +80,17 @@ def _lookup(entry: _Entry, kid: str | None) -> jwt.PyJWK | None:
     return entry.keys.get(kid)
 
 
-async def verify_token(token: str, issuer_row: Mapping[str, Any]) -> dict[str, Any]:
+async def verify_token(
+    token: str,
+    issuer_row: Mapping[str, Any],
+    *,
+    allow_insecure_uri: bool = False,
+    leeway: float = 0,
+) -> dict[str, Any]:
     uri: str = issuer_row["jwks_uri"]
-    if not issuer_row["enabled"] or not uri.startswith("https://"):
+    if not issuer_row["enabled"] or not (
+        uri.startswith("https://") or (allow_insecure_uri and uri.startswith("http://"))
+    ):
         raise _unauthenticated()
     try:
         header = jwt.get_unverified_header(token)
@@ -93,6 +101,7 @@ async def verify_token(token: str, issuer_row: Mapping[str, Any]) -> dict[str, A
             algorithms=ALGORITHMS,
             audience=issuer_row["audience"],
             issuer=issuer_row["issuer"],
+            leeway=leeway,
             options={"require": ["exp", "iss", "aud"]},
         )
     except (jwt.PyJWTError, httpx.HTTPError, OSError, ValueError, KeyError):

@@ -2,7 +2,7 @@ import base64
 import json
 import time
 import uuid
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 from typing import Any, LiteralString
 
 import jwt
@@ -190,3 +190,170 @@ def add_policy(
             )
 
     return add
+
+
+LOGIN_ISSUER = "https://login.example.com"
+LOGIN_AUDIENCE = "krep-panel"
+LOGIN_JWKS_URL = "https://login.example.com/api/auth/jwks"
+PLATFORM_KEY = "platform-key-" + "k" * 32
+DEFAULT_RULES = {
+    "registry-admins": '"org-admin" in token.groups',
+    "registry-writers": '"org-admin" in token.groups || "writer" in token.groups',
+    "registry-readers": '"org-admin" in token.groups || "writer" in token.groups || "reader" in token.groups',
+}
+
+
+@pytest.fixture
+def panel_env(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    from cryptography.fernet import Fernet
+
+    from krep.auth import store
+    from krep.config import get_settings
+
+    monkeypatch.setenv("KREP_DATABASE_URL", "postgresql://unused/unused")
+    monkeypatch.setenv("KREP_LOGIN_ISSUER", LOGIN_ISSUER)
+    monkeypatch.setenv("KREP_LOGIN_AUDIENCE", LOGIN_AUDIENCE)
+    monkeypatch.setenv("KREP_LOGIN_JWKS_URL", LOGIN_JWKS_URL)
+    monkeypatch.setenv("KREP_PLATFORM_ADMIN_KEY", PLATFORM_KEY)
+    monkeypatch.setenv("KREP_ENCRYPTION_KEYS", f"k1:{Fernet.generate_key().decode()}")
+    get_settings.cache_clear()
+    store.clear_cache()
+    yield
+    get_settings.cache_clear()
+    store.clear_cache()
+
+
+def login_claims(sub: str, **overrides: Any) -> dict[str, Any]:
+    return {
+        "iss": LOGIN_ISSUER,
+        "aud": LOGIN_AUDIENCE,
+        "sub": sub,
+        "username": f"name-{sub}",
+        "exp": int(time.time()) + 600,
+        **overrides,
+    }
+
+
+def login_headers(
+    keys: Keys,
+    sub: str,
+    org: str | None = None,
+    product: str | None = None,
+    **claim_overrides: Any,
+) -> dict[str, str]:
+    headers = {
+        "authorization": f"Bearer {keys.sign(login_claims(sub, **claim_overrides))}"
+    }
+    if org is not None:
+        headers["x-org"] = org
+    if product is not None:
+        headers["x-product"] = product
+    return headers
+
+
+class Org:
+    def __init__(self, id: uuid.UUID, slug: str) -> None:
+        self.id = id
+        self.slug = slug
+
+
+class Seed:
+    def __init__(
+        self,
+        owner_exec: Callable[..., Awaitable[None]],
+        add_policy: Callable[..., Awaitable[None]],
+        pool: AsyncConnectionPool[AsyncConnection],
+        migrated_db: str,
+    ) -> None:
+        self.owner_exec = owner_exec
+        self.add_policy = add_policy
+        self.pool = pool
+        self.migrated_db = migrated_db
+
+    async def _scoped(self, tenant: uuid.UUID) -> None:
+        await self.owner_exec(
+            "SELECT set_config('app.tenant_id', %s, false)", (str(tenant),)
+        )
+
+    async def org(
+        self, status: str = "active", rules: dict[str, str] | None = DEFAULT_RULES
+    ) -> Org:
+        org_id = uuid.uuid4()
+        slug = f"org-{uuid.uuid4().hex[:12]}"
+        await self.owner_exec(
+            "INSERT INTO organizations (id, slug, name, status, delete_after, created_by) "
+            "VALUES (%s, %s, 'Org', %s, CASE WHEN %s = 'pending_delete' THEN now() + interval '1 day' END, 'u')",
+            (org_id, slug, status, status),
+        )
+        for name, rule in (rules or {}).items():
+            await self.add_policy(org_id, name, rule)
+        return Org(org_id, slug)
+
+    async def product(
+        self, org: Org, slug: str = "prod-one", status: str = "active"
+    ) -> uuid.UUID:
+        product_id = uuid.uuid4()
+        await self._scoped(org.id)
+        await self.owner_exec(
+            "INSERT INTO products (id, tenant_id, slug, name, status, created_by) "
+            "VALUES (%s, %s, %s, 'P', %s, 'u')",
+            (product_id, org.id, slug, status),
+        )
+        return product_id
+
+    async def member(
+        self, org: Org, user_id: str, groups: list[str] | None = None
+    ) -> None:
+        await self._scoped(org.id)
+        await self.owner_exec(
+            "INSERT INTO memberships (user_id, tenant_id, groups, created_by) "
+            "VALUES (%s, %s, %s, 'u') ON CONFLICT (user_id, tenant_id) DO UPDATE SET groups = EXCLUDED.groups",
+            (user_id, org.id, groups or []),
+        )
+
+    async def unmember(self, org: Org, user_id: str) -> None:
+        await self._scoped(org.id)
+        await self.owner_exec(
+            "DELETE FROM memberships WHERE user_id = %s AND tenant_id = %s",
+            (user_id, org.id),
+        )
+
+    async def platform_admin(self, user_id: str) -> None:
+        await self.owner_exec(
+            "INSERT INTO platform_admins (user_id, granted_by) VALUES (%s, 'u')",
+            (user_id,),
+        )
+
+    async def disable(self, user_id: str) -> None:
+        await self.owner_exec(
+            "INSERT INTO disabled_users (user_id, disabled_by) VALUES (%s, 'u')",
+            (user_id,),
+        )
+
+    async def hmac(
+        self,
+        org: Org,
+        secret: str,
+        product: uuid.UUID | None = None,
+        **config: Any,
+    ) -> None:
+        from krep.auth.store import save_config
+
+        async with tenant_transaction(self.pool, org.id) as conn:
+            await save_config(conn, org.id, product, "hmac", config, secret, "u")
+
+
+@pytest_asyncio.fixture
+async def seed(
+    panel_env: None,
+    owner_exec: Callable[..., Awaitable[None]],
+    add_policy: Callable[..., Awaitable[None]],
+    pool: AsyncConnectionPool[AsyncConnection],
+    migrated_db: str,
+) -> AsyncIterator[Seed]:
+    yield Seed(owner_exec, add_policy, pool, migrated_db)
+    await owner_exec("DELETE FROM disabled_users")
+    await owner_exec("DELETE FROM platform_admins")
+    await owner_exec(
+        "UPDATE organizations SET status = 'suspended' WHERE NOT is_platform AND status = 'active'"
+    )

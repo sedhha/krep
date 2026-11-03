@@ -16,6 +16,12 @@ async def get_caller(request: Request) -> Caller:
     return caller
 
 
+async def require_read(caller: Annotated[Caller, Depends(get_caller)]) -> Caller:
+    if not caller.can_read:
+        raise ApiError(403, "forbidden", "read permission required")
+    return caller
+
+
 async def require_write(caller: Annotated[Caller, Depends(get_caller)]) -> Caller:
     if not caller.can_write:
         raise ApiError(403, "forbidden", "write permission required")
@@ -32,4 +38,6 @@ async def db(
     request: Request, caller: Annotated[Caller, Depends(get_caller)]
 ) -> AsyncGenerator[AsyncConnection]:
     async with tenant_transaction(request.app.state.pool, caller.tenant_id) as conn:
+        if caller.is_platform_admin:
+            await conn.execute("SELECT set_config('app.platform_admin', 'on', true)")
         yield conn

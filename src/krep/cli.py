@@ -46,6 +46,11 @@ def _parser() -> argparse.ArgumentParser:
         "recompile", help="rewrite compiled_path for stale compiler versions"
     )
     recompile.add_argument("--tenant", type=_tenant, action="append", required=True)
+    admin = groups.add_parser("platform-admin").add_subparsers(
+        dest="command", required=True
+    )
+    grant = admin.add_parser("grant", help="grant platform admin to a signed-up user")
+    grant.add_argument("--username", required=True)
     keys = groups.add_parser("keys").add_subparsers(dest="command", required=True)
     generate = keys.add_parser("generate", help="print a new encryption key entry")
     generate.add_argument("--id", dest="key_id", default=None)
@@ -111,12 +116,32 @@ async def _recompile(conn: AsyncConnection, tenants: list[UUID]) -> int:
     return rewritten
 
 
+async def _grant_platform_admin(conn: AsyncConnection, username: str) -> str | None:
+    async with conn.transaction():
+        cur = await conn.execute(
+            "SELECT id FROM auth_users WHERE username = %s", (username,)
+        )
+        row = await cur.fetchone()
+        if row is None:
+            return None
+        await conn.execute(
+            "INSERT INTO platform_admins (user_id, granted_by) VALUES (%s, %s) "
+            "ON CONFLICT (user_id) DO NOTHING",
+            (row[0], CLI_USER),
+        )
+        return row[0]
+
+
 async def _run(args: argparse.Namespace) -> None:
     url = os.environ["KREP_MIGRATION_DATABASE_URL"].replace(
         "postgresql+psycopg://", "postgresql://"
     )
     async with await AsyncConnection.connect(url) as conn:
-        if args.group == "tenant":
+        if args.group == "platform-admin":
+            if await _grant_platform_admin(conn, args.username) is None:
+                raise LookupError(f"no user with username {args.username!r}")
+            print(f"platform admin granted to {args.username}")
+        elif args.group == "tenant":
             await _tenant_init(conn, args.tenant, args.admin_rule, args.writer_rule)
             print(f"tenant {args.tenant} initialised")
         elif args.command == "recompile":
@@ -139,5 +164,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         asyncio.run(_run(args))
     except PolicyError as exc:
         print(_error(exc), file=sys.stderr)
+        return 1
+    except LookupError as exc:
+        print(exc, file=sys.stderr)
         return 1
     return 0

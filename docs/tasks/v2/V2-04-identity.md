@@ -13,7 +13,7 @@ V2-01 tables and `auth_users` view; V2-02 `Caller.product_id` usage; V2-03 `load
 - `selector.py`: `resolve_selector(pool, headers) -> Caller`: organisation and product from `X-Org`/`X-Product` (product optional), status must be `active`, then credential per 3.2 step 3; every failure is the identical `401 unauthenticated`.
 - `login.py`: verify a login JWT through `KREP_LOGIN_JWKS_URL` with `iss`/`aud`/`exp`, `sub` not in `disabled_users`, membership or platform admin; builds `token = {"sub", "username", "groups"}` from the verified JWT and `memberships`.
 - `platform.py`: `is_platform_admin(user_id)` and `X-Platform-Key` constant-time check; platform identity in an organisation gets `can_admin`, user id `platform-admin`, and the transaction flag `app.platform_admin = on` only for platform routes and global writes.
-- `GET /v1/me` per spec 9.1; `krep platform-admin grant` resolves the user id from `auth_users` and inserts into `platform_admins` as `krep_platform`.
+- `GET /v1/me` per spec 9.1; `krep platform-admin grant` resolves the user id from `auth_users` and inserts into `platform_admins` over the owner connection (`KREP_MIGRATION_DATABASE_URL`), per spec 3.3.
 
 ## Steps
 1. Login JWT tests with the stub issuer (ac1): valid; wrong issuer, wrong audience, expired, unknown key, `alg: none` all return the identical `401`; the login issuer cannot be registered by an organisation auth config.

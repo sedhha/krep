@@ -1,7 +1,8 @@
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
+from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 
 from krep.api.errors import install_error_handlers
 from krep.api.limits import router as limits_router
@@ -14,6 +15,7 @@ from krep.api.search import router as search_router
 from krep.api.versions import router as versions_router
 from krep.config import get_settings
 from krep.db.pool import open_pool
+from krep.identity.selector import describe_me
 
 
 @asynccontextmanager
@@ -37,6 +39,11 @@ def create_app() -> FastAPI:
     app.include_router(registry_router)
     app.include_router(versions_router)
     app.include_router(links_router)
+
+    @app.get("/v1/me")
+    async def me(request: Request) -> dict[str, Any]:
+        return await describe_me(request.app.state.pool, request.headers)
+
     return app
 
 

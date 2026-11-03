@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response
 from psycopg import AsyncConnection
 from pydantic import BaseModel, ValidationError, model_validator
 
-from krep.api.deps import db, get_caller, require_write
+from krep.api.deps import db, require_read, require_write
 from krep.api.errors import ApiError
 from krep.api.skill_archive import is_multipart, read_multipart
 from krep.identity.resolve import Caller
@@ -16,7 +16,7 @@ router = APIRouter(prefix="/v1/registry")
 
 Conn = Annotated[AsyncConnection, Depends(db)]
 Writer = Annotated[Caller, Depends(require_write)]
-Authenticated = Annotated[Caller, Depends(get_caller)]
+Authenticated = Annotated[Caller, Depends(require_read)]
 
 
 class CreateIn(BaseModel):

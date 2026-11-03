@@ -3,14 +3,14 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends
 from psycopg import AsyncConnection
 
-from krep.api.deps import db, get_caller
+from krep.api.deps import db, require_read
 from krep.identity.resolve import Caller
 from krep.registry.limits import effective_limits
 
 router = APIRouter(prefix="/v1")
 
 Conn = Annotated[AsyncConnection, Depends(db)]
-Authenticated = Annotated[Caller, Depends(get_caller)]
+Authenticated = Annotated[Caller, Depends(require_read)]
 
 
 @router.get("/limits")

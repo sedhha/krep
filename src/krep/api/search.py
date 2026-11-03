@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query, Response
 from psycopg import AsyncConnection
 from pydantic import BaseModel
 
-from krep.api.deps import db, get_caller, require_admin
+from krep.api.deps import db, require_admin, require_read
 from krep.config import get_settings
 from krep.identity.resolve import Caller
 from krep.metrics import SEARCH_ZERO_RESULTS
@@ -19,7 +19,7 @@ router = APIRouter(prefix="/v1")
 logger = logging.getLogger("krep.search")
 
 Conn = Annotated[AsyncConnection, Depends(db)]
-Authenticated = Annotated[Caller, Depends(get_caller)]
+Authenticated = Annotated[Caller, Depends(require_read)]
 Admin = Annotated[Caller, Depends(require_admin)]
 
 

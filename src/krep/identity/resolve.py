@@ -20,6 +20,7 @@ Resolved = tuple[UUID, str, dict[str, Any], dict[str, Any]]
 
 ADMINS_POLICY = "registry-admins"
 WRITERS_POLICY = "registry-writers"
+READERS_POLICY = "registry-readers"
 
 
 @dataclass
@@ -30,13 +31,17 @@ class Caller:
     can_write: bool
     can_admin: bool
     product_id: UUID | None = None
+    can_read: bool = True
+    is_platform_admin: bool = False
+    org_slug: str | None = None
+    source: str = "v1"
 
 
 def _unauthenticated() -> ApiError:
     return ApiError(401, "unauthenticated", "invalid or missing credentials")
 
 
-def _dig(claims: Mapping[str, Any], path: list[str]) -> Any:
+def dig(claims: Mapping[str, Any], path: list[str]) -> Any:
     current: Any = claims
     for segment in path:
         if not isinstance(current, dict):
@@ -54,14 +59,14 @@ def _bearer(headers: Mapping[str, str]) -> str | None:
     return token if scheme.lower() == "bearer" and token else None
 
 
-async def _permissions(
+async def capabilities(
     pool: Pool, tenant_id: UUID, doc: dict[str, Any]
-) -> tuple[bool, bool]:
+) -> tuple[bool, bool, bool]:
     async with tenant_transaction(pool, tenant_id) as conn:
         cursor = await conn.execute(
             "SELECT name, compiled_path::text FROM access_policies "
             "WHERE reserved AND name = ANY(%s)",
-            ([ADMINS_POLICY, WRITERS_POLICY],),
+            ([ADMINS_POLICY, WRITERS_POLICY, READERS_POLICY],),
         )
         paths = {name: path for name, path in await cursor.fetchall()}
         satisfied = {
@@ -69,7 +74,8 @@ async def _permissions(
             for name, path in paths.items()
         }
     can_admin = satisfied.get(ADMINS_POLICY, False)
-    return can_admin or satisfied.get(WRITERS_POLICY, False), can_admin
+    can_write = can_admin or satisfied.get(WRITERS_POLICY, False)
+    return can_write or satisfied.get(READERS_POLICY, False), can_write, can_admin
 
 
 async def _from_api_key(pool: Pool, key: str, principal_header: str | None) -> Resolved:
@@ -113,7 +119,7 @@ async def _from_jwt(pool: Pool, token: str, principal_header: str | None) -> Res
     if principal:
         user_id = principal["id"]
     else:
-        subject = _dig(claims, ["sub"] if machine else row["user_claim_path"])
+        subject = dig(claims, ["sub"] if machine else row["user_claim_path"])
         if not isinstance(subject, str) or not subject:
             raise _unauthenticated()
         user_id = f"client:{subject}" if machine else subject
@@ -121,7 +127,7 @@ async def _from_jwt(pool: Pool, token: str, principal_header: str | None) -> Res
 
 
 def _tenant_from_claims(claims: Mapping[str, Any], path: list[str]) -> UUID:
-    value = _dig(claims, path)
+    value = dig(claims, path)
     if not isinstance(value, str):
         raise _unauthenticated()
     try:
@@ -131,6 +137,11 @@ def _tenant_from_claims(claims: Mapping[str, Any], path: list[str]) -> UUID:
 
 
 async def resolve_caller(pool: Pool, headers: Mapping[str, str]) -> Caller:
+    headers = {name.lower(): value for name, value in headers.items()}
+    if "x-org" in headers:
+        from krep.identity.selector import resolve_selector
+
+        return await resolve_selector(pool, headers)
     principal_header = headers.get("x-principal")
     api_key = headers.get("x-api-key")
     if api_key:
@@ -145,5 +156,5 @@ async def resolve_caller(pool: Pool, headers: Mapping[str, str]) -> Caller:
             pool, bearer, principal_header
         )
     doc = {"token": token, "principal": principal}
-    can_write, can_admin = await _permissions(pool, tenant_id, doc)
+    _, can_write, can_admin = await capabilities(pool, tenant_id, doc)
     return Caller(tenant_id, user_id, doc, can_write, can_admin)

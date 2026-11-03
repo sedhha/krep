@@ -114,7 +114,7 @@ def _in_reach(caller: Caller, row: Row) -> bool:
 
 
 async def can_read(conn: AsyncConnection, caller: Caller, row: Row) -> bool:
-    if not _in_reach(caller, row):
+    if not caller.can_read or not _in_reach(caller, row):
         return False
     if row["status"] != "published":
         return await can_edit(conn, caller, row)
