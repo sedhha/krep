@@ -1,8 +1,11 @@
+import json
 import time
 from typing import Any
 
 import jwt
 import pytest
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from jwt.algorithms import OKPAlgorithm
 from psycopg import AsyncConnection
 from psycopg_pool import AsyncConnectionPool
 
@@ -156,3 +159,21 @@ async def test_v2ac3_org_auth_config_cannot_verify_the_login_issuer(
         algorithm="HS256",
     )
     await rejected(pool, {"authorization": f"Bearer {token}", "x-org": org.slug})
+
+
+async def test_v2ac1_eddsa_signed_login_jwt_is_accepted(
+    pool: Pool, jwks: dict[str, Any], seed: Seed
+) -> None:
+    private = Ed25519PrivateKey.generate()
+    jwk = json.loads(OKPAlgorithm.to_jwk(private.public_key()))
+    jwks["keys"] = [{**jwk, "kid": "ed1", "alg": "EdDSA"}]
+    org = await seed.org()
+    await seed.member(org, "u-1", ["writer"])
+    token = jwt.encode(
+        login_claims("u-1"), private, algorithm="EdDSA", headers={"kid": "ed1"}
+    )
+    caller = await resolve_caller(
+        pool, {"authorization": f"Bearer {token}", "x-org": org.slug}
+    )
+    assert caller.user_id == "u-1"
+    assert caller.source == "login"

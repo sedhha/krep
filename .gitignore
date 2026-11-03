@@ -13,3 +13,11 @@ dist/
 build/
 *.egg-info/
 secrets/
+
+.DS_Store
+node_modules/
+.next/
+next-env.d.ts
+*.tsbuildinfo
+ui/test-results/
+ui/playwright-report/

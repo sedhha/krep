@@ -18,6 +18,7 @@ ALGORITHMS = [
     "ES256",
     "ES384",
     "ES512",
+    "EdDSA",
 ]
 JWKS_TTL_SECONDS = 600.0
 MIN_REFETCH_SECONDS = 15.0
