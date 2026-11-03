@@ -18,6 +18,7 @@ Python 3.13, `uv`, Docker (PostgreSQL 17).
 | `KREP_LOGIN_ISSUER` | `iss` of panel login JWTs; a JWT with this issuer is only verified against the login JWKS |
 | `KREP_LOGIN_JWKS_URL` | JWKS URL of the login issuer (`https://`; `http://` is accepted only when `KREP_ENV=local`) |
 | `KREP_LOGIN_AUDIENCE` | Required `aud` of panel login JWTs |
+| `KREP_ORG_DELETE_GRACE_DAYS` | Default grace period in days for `schedule-delete` (default 30, request maximum 90) |
 | `KREP_ENV` | Set to `local` for local development relaxations |
 | `KREP_METRICS_TOKEN` | Bearer token for `/metrics`; unset means `/metrics` returns 404 |
 | `KREP_SEARCH_LOG_ZERO_RESULTS` | `true` logs normalised zero-result queries |
@@ -35,6 +36,12 @@ Onboard a tenant after inserting its `token_issuers` row:
 
 ```bash
 uv run krep tenant init --tenant <tenant-uuid> --admin-rule 'token.groups == "grc-admins"' --writer-rule 'token.groups == "grc-editors"'
+```
+
+Purge organisations whose delete date has passed (run from cron or a scheduled task; needs `KREP_MIGRATION_DATABASE_URL`):
+
+```bash
+uv run krep jobs purge-due
 ```
 
 ## Test

@@ -14,7 +14,7 @@ from krep.config import get_settings
 from krep.db.tenant import tenant_transaction
 from krep.identity.login import PanelIdentity, authenticate_panel
 from krep.identity.resolve import Caller
-from krep.org import audit, service
+from krep.org import audit, lifecycle, service
 from krep.registry.scope import set_scope
 
 router = APIRouter(prefix="/v1/admin")
@@ -44,6 +44,14 @@ class ScopeIn(BaseModel):
     organization_id: UUID
     scope: Literal["org", "product", "global"]
     product: str | None = None
+
+
+class ScheduleDeleteIn(BaseModel):
+    grace_days: int | None = None
+
+
+class LegalHoldIn(BaseModel):
+    legal_hold: bool
 
 
 class DisableIn(BaseModel):
@@ -115,6 +123,43 @@ async def list_organizations(_: Actor, conn: Conn) -> dict[str, Any]:
 @router.get("/organizations/{org_id}")
 async def get_organization(org_id: UUID, _: Actor, conn: Conn) -> dict[str, Any]:
     return await service.get_organization(conn, org_id)
+
+
+@router.post("/organizations/{org_id}/suspend")
+async def suspend_organization(
+    org_id: UUID, actor: Actor, conn: Conn
+) -> dict[str, Any]:
+    return await lifecycle.suspend(conn, actor.user_id, org_id)
+
+
+@router.post("/organizations/{org_id}/activate")
+async def activate_organization(
+    org_id: UUID, actor: Actor, conn: Conn
+) -> dict[str, Any]:
+    return await lifecycle.activate(conn, actor.user_id, org_id)
+
+
+@router.post("/organizations/{org_id}/schedule-delete")
+async def schedule_delete_organization(
+    org_id: UUID, actor: Actor, conn: Conn, body: ScheduleDeleteIn | None = None
+) -> dict[str, Any]:
+    return await lifecycle.schedule_delete(
+        conn, actor.user_id, org_id, body.grace_days if body else None
+    )
+
+
+@router.post("/organizations/{org_id}/cancel-delete")
+async def cancel_delete_organization(
+    org_id: UUID, actor: Actor, conn: Conn
+) -> dict[str, Any]:
+    return await lifecycle.cancel_delete(conn, actor.user_id, org_id)
+
+
+@router.put("/organizations/{org_id}/legal-hold")
+async def put_legal_hold(
+    org_id: UUID, actor: Actor, conn: Conn, body: LegalHoldIn
+) -> dict[str, Any]:
+    return await lifecycle.set_legal_hold(conn, actor.user_id, org_id, body.legal_hold)
 
 
 @router.put("/organizations/{org_id}/members/{user_id}")

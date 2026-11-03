@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import json
 import os
 import secrets
 import sys
@@ -9,6 +10,7 @@ from uuid import UUID
 from cryptography.fernet import Fernet
 from psycopg import AsyncConnection
 
+from krep.jobs import purge_due
 from krep.org.service import init_capabilities
 from krep.policy.ast import PolicyError, PolicyInvalid, PolicyParseError, PolicyTooLarge
 from krep.policy.compile import COMPILER_VERSION, compile_ast
@@ -52,6 +54,8 @@ def _parser() -> argparse.ArgumentParser:
     )
     grant = admin.add_parser("grant", help="grant platform admin to a signed-up user")
     grant.add_argument("--username", required=True)
+    jobs = groups.add_parser("jobs").add_subparsers(dest="command", required=True)
+    jobs.add_parser("purge-due", help="purge organisations past their delete date")
     keys = groups.add_parser("keys").add_subparsers(dest="command", required=True)
     generate = keys.add_parser("generate", help="print a new encryption key entry")
     generate.add_argument("--id", dest="key_id", default=None)
@@ -135,6 +139,15 @@ async def _run(args: argparse.Namespace) -> None:
             if await _grant_platform_admin(conn, args.username) is None:
                 raise LookupError(f"no user with username {args.username!r}")
             print(f"platform admin granted to {args.username}")
+        elif args.group == "jobs":
+            for result in await purge_due(conn):
+                if result.purged:
+                    print(f"purged {result.slug} {result.organization_id}")
+                else:
+                    print(
+                        f"blocked {result.slug} {result.organization_id} "
+                        f"{json.dumps(result.blockers)}"
+                    )
         elif args.group == "tenant":
             await _tenant_init(conn, args.tenant, args.admin_rule, args.writer_rule)
             print(f"tenant {args.tenant} initialised")

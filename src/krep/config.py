@@ -20,6 +20,7 @@ class Settings:
     login_issuer: str = ""
     login_jwks_url: str = ""
     login_audience: str = ""
+    org_delete_grace_days: int = 30
     env: str = ""
 
 
@@ -37,5 +38,6 @@ def get_settings() -> Settings:
         login_issuer=os.environ.get("KREP_LOGIN_ISSUER", ""),
         login_jwks_url=os.environ.get("KREP_LOGIN_JWKS_URL", ""),
         login_audience=os.environ.get("KREP_LOGIN_AUDIENCE", ""),
+        org_delete_grace_days=int(os.environ.get("KREP_ORG_DELETE_GRACE_DAYS") or 30),
         env=os.environ.get("KREP_ENV", ""),
     )
