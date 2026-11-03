@@ -66,7 +66,7 @@ async def test_tenant_tables_enable_and_force_rls_with_policy(
     cur = await owner_conn.execute(
         "SELECT policyname FROM pg_policies WHERE tablename = %s", (table,)
     )
-    assert await cur.fetchall() == [("tenant_isolation",)]
+    assert ("tenant_isolation",) in await cur.fetchall()
 
 
 async def test_ac1_rls_cross_tenant_zero_rows(app_conn: AsyncConnection) -> None:

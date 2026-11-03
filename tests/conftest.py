@@ -31,6 +31,16 @@ def alembic(database: str, *args: str) -> None:
 def create_database() -> str:
     name = f"krep_test_{uuid.uuid4().hex[:8]}"
     with psycopg.connect(SUPERUSER_URL, autocommit=True) as conn:
+        for role in ("krep_platform", "krep_auth"):
+            if not conn.execute(
+                "SELECT 1 FROM pg_roles WHERE rolname = %s", (role,)
+            ).fetchone():
+                conn.execute(
+                    sql.SQL(
+                        "CREATE ROLE {} LOGIN PASSWORD 'dev' NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS"
+                    ).format(sql.Identifier(role))
+                )
+        conn.execute("GRANT krep_app TO krep_owner WITH INHERIT FALSE")
         conn.execute(
             sql.SQL("CREATE DATABASE {} OWNER krep_owner").format(sql.Identifier(name))
         )
@@ -40,7 +50,14 @@ def create_database() -> str:
         conn.execute("CREATE EXTENSION IF NOT EXISTS pg_trgm")
         conn.execute("CREATE EXTENSION IF NOT EXISTS pgcrypto")
         conn.execute("ALTER SCHEMA public OWNER TO krep_owner")
-        conn.execute("GRANT USAGE ON SCHEMA public TO krep_app")
+        conn.execute("GRANT USAGE ON SCHEMA public TO krep_app, krep_platform")
+        conn.execute("CREATE SCHEMA auth AUTHORIZATION krep_auth")
+        conn.execute(
+            'CREATE TABLE auth."user" (id text PRIMARY KEY, username text, email text, name text)'
+        )
+        conn.execute('ALTER TABLE auth."user" OWNER TO krep_auth')
+        conn.execute("GRANT USAGE ON SCHEMA auth TO krep_owner")
+        conn.execute('GRANT SELECT ON auth."user" TO krep_owner WITH GRANT OPTION')
     return name
 
 

@@ -7,6 +7,10 @@ from tests.conftest import alembic, role_url
 
 async def test_ac28_downgrade_base_then_upgrade_head(scratch_db: str) -> None:
     alembic(scratch_db, "upgrade", "head")
+    with psycopg.connect(role_url("krep_owner", scratch_db)) as conn:
+        assert conn.execute("SELECT version_num FROM alembic_version").fetchone() == (
+            "0009",
+        )
     alembic(scratch_db, "downgrade", "base")
     with psycopg.connect(role_url("krep_owner", scratch_db)) as conn:
         remaining = conn.execute(
