@@ -9,7 +9,7 @@ Drop 1 (V2-01 to V2-07) is the backend, testable with a stub login issuer and a 
 | V2-01 | [Migrations: organisations, identity tables, scope, policy join, roles](V2-01-migrations.md) | done | fb49d17 |
 | V2-02 | [Policy-only access, scope and global read](V2-02-policy-only-access.md) | done | 04d83aa |
 | V2-03 | [Secret crypto and organisation auth adapters](V2-03-crypto-auth-adapters.md) | done | ef46c71 |
-| V2-04 | [Identity: selector mode, login JWT, platform admin](V2-04-identity.md) | in-review | |
+| V2-04 | [Identity: selector mode, login JWT, platform admin](V2-04-identity.md) | done | 5ecdd68 |
 | V2-05 | [Platform and organisation routes, audit](V2-05-admin-routes.md) | todo | |
 | V2-06 | [Resource API scope, cross-tenant links, global approval](V2-06-resource-links.md) | todo | |
 | V2-07 | [Organisation lifecycle and purge](V2-07-lifecycle.md) | todo | |
