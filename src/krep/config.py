@@ -14,6 +14,7 @@ class Settings:
     search_semantic_enabled: bool = False
     search_log_zero_results: bool = False
     metrics_token: str = ""
+    encryption_keys: str = ""
 
 
 @lru_cache
@@ -24,4 +25,5 @@ def get_settings() -> Settings:
         search_semantic_enabled=_flag("KREP_SEARCH_SEMANTIC_ENABLED"),
         search_log_zero_results=_flag("KREP_SEARCH_LOG_ZERO_RESULTS"),
         metrics_token=os.environ.get("KREP_METRICS_TOKEN", ""),
+        encryption_keys=os.environ.get("KREP_ENCRYPTION_KEYS", ""),
     )

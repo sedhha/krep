@@ -1,10 +1,12 @@
 import argparse
 import asyncio
 import os
+import secrets
 import sys
 from collections.abc import Sequence
 from uuid import UUID
 
+from cryptography.fernet import Fernet
 from psycopg import AsyncConnection
 
 from krep.policy.ast import PolicyError, PolicyInvalid, PolicyParseError, PolicyTooLarge
@@ -44,6 +46,9 @@ def _parser() -> argparse.ArgumentParser:
         "recompile", help="rewrite compiled_path for stale compiler versions"
     )
     recompile.add_argument("--tenant", type=_tenant, action="append", required=True)
+    keys = groups.add_parser("keys").add_subparsers(dest="command", required=True)
+    generate = keys.add_parser("generate", help="print a new encryption key entry")
+    generate.add_argument("--id", dest="key_id", default=None)
     return parser
 
 
@@ -123,6 +128,10 @@ async def _run(args: argparse.Namespace) -> None:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.group == "keys":
+        key_id = args.key_id or f"k{secrets.token_hex(4)}"
+        print(f"{key_id}:{Fernet.generate_key().decode()}")
+        return 0
     if "KREP_MIGRATION_DATABASE_URL" not in os.environ:
         print("KREP_MIGRATION_DATABASE_URL is not set", file=sys.stderr)
         return 2
