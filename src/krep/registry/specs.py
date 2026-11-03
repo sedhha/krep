@@ -12,7 +12,7 @@ from jsonschema.exceptions import SchemaError
 
 SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{1,62}$")
 TAG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,31}$")
-VISIBILITIES = ("private", "tenant", "restricted")
+SCOPES = ("org", "product", "global")
 MAX_NAME = 120
 MAX_DESCRIPTION = 2000
 MAX_TAGS = 20
@@ -118,8 +118,6 @@ def validate_resource_fields(
     slug: str,
     description: str,
     tags: list[str],
-    visibility: str,
-    policy_id: Any,
     meta: Any,
 ) -> list[FieldError]:
     errors: list[FieldError] = []
@@ -138,12 +136,6 @@ def validate_resource_fields(
         for i, tag in enumerate(tags)
         if not TAG_RE.fullmatch(tag)
     )
-    if visibility not in VISIBILITIES:
-        errors.append(
-            FieldError("visibility", f"must be one of {', '.join(VISIBILITIES)}")
-        )
-    elif visibility == "restricted" and policy_id is None:
-        errors.append(FieldError("policy_id", "required when visibility is restricted"))
     if not isinstance(meta, dict):
         errors.append(FieldError("meta", "must be an object"))
     elif len(canonical_json(meta)) > MAX_META_BYTES:

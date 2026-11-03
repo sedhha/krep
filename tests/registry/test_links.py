@@ -7,6 +7,7 @@ import psycopg
 import pytest
 
 from krep.api.errors import ApiError
+from krep.db.tenant import tenant_transaction
 from krep.identity.resolve import Caller
 from krep.registry.links import (
     accept_link,
@@ -20,11 +21,14 @@ from krep.registry.resources import delete_resource, set_archived
 from krep.registry.versions import create_draft
 from tests.registry.conftest import (
     MakeClient,
+    Pool,
     agent_body,
     caller_for,
     new_agent,
     new_skill,
+    open_policy,
     scalar,
+    share,
     skill_body,
     skill_zip,
 )
@@ -175,8 +179,8 @@ async def test_ac1_cross_tenant_target_is_404(
     )
     foreign_skill = await scalar(
         owner_conn,
-        "INSERT INTO registry (tenant_id, type, slug, name, visibility, status, created_by, updated_by) "
-        "VALUES (%s, 'skill', 'foreign-skill', 'Foreign', 'tenant', 'published', 'x', 'x') RETURNING id",
+        "INSERT INTO registry (tenant_id, type, slug, name, status, created_by, updated_by) "
+        "VALUES (%s, 'skill', 'foreign-skill', 'Foreign', 'published', 'x', 'x') RETURNING id",
         other_tenant,
     )
     await owner_conn.commit()
@@ -203,9 +207,7 @@ async def test_creator_without_edit_on_origin_side_is_403(
     agent = await new_agent(conn, owner)
     skill = await new_skill(conn, owner)
     await publish(conn, owner, agent, 1)
-    await conn.execute(
-        "UPDATE registry SET visibility = 'tenant' WHERE id = %s", (agent,)
-    )
+    await share(conn, tenant, agent)
     err = await error_of(link(conn, caller_for(tenant, "stranger"), agent, skill))
     assert (err.status, err.error) in {(403, "forbidden"), (404, "not_found")}
     assert await scalar(conn, "SELECT count(*) FROM registry_links") == 0
@@ -265,9 +267,7 @@ async def test_ac19_skill_initiated_link_on_another_owners_agent_is_pending_unti
     skill = await new_skill(conn, priya)
     await publish(conn, priya, skill, 1)
     await publish(conn, ravi, agent, 1)
-    await conn.execute(
-        "UPDATE registry SET visibility = 'tenant' WHERE id = %s", (agent,)
-    )
+    await share(conn, tenant, agent)
     out = await link(conn, priya, skill, agent, direction="in", auto_load=True)
     assert out["status"] == "pending"
     assert out["accept_by"] == "source"
@@ -297,9 +297,7 @@ async def test_ac19_rejected_link_stays_out_of_freeze(
     skill = await new_skill(conn, priya)
     await publish(conn, priya, skill, 1)
     await publish(conn, ravi, agent, 1)
-    await conn.execute(
-        "UPDATE registry SET visibility = 'tenant' WHERE id = %s", (agent,)
-    )
+    await share(conn, tenant, agent)
     out = await link(conn, priya, skill, agent, direction="in")
     rejected = await reject_link(conn, ravi, out["id"])
     assert rejected["status"] == "rejected"
@@ -318,9 +316,7 @@ async def test_admin_can_accept_for_the_owner(
     agent = await new_agent(conn, ravi)
     skill = await new_skill(conn, priya)
     await publish(conn, ravi, agent, 1)
-    await conn.execute(
-        "UPDATE registry SET visibility = 'tenant' WHERE id = %s", (agent,)
-    )
+    await share(conn, tenant, agent)
     out = await link(conn, priya, skill, agent, direction="in")
     assert out["status"] == "pending"
     assert (await accept_link(conn, caller_for(tenant, "root", admin=True), out["id"]))[
@@ -403,10 +399,7 @@ async def test_ac21_pending_links_do_not_count_toward_cycles_until_accepted(
         skill = await new_skill(conn, priya)
         await publish(conn, priya, skill, 1)
         await publish(conn, ravi, agent, 1)
-        await conn.execute(
-            "UPDATE registry SET visibility = 'tenant' WHERE id IN (%s, %s)",
-            (agent, skill),
-        )
+        await share(conn, tenant, agent, skill)
         pending = await link(conn, priya, skill, agent, direction="in")
         assert pending["status"] == "pending"
         back = await link(conn, priya, skill, agent, relation="delegates")
@@ -426,9 +419,7 @@ async def test_delete_link_by_owner_of_either_side(
     agent = await new_agent(conn, ravi)
     skill = await new_skill(conn, priya)
     await publish(conn, priya, skill, 1)
-    await conn.execute(
-        "UPDATE registry SET visibility = 'tenant' WHERE id = %s", (skill,)
-    )
+    await share(conn, tenant, skill)
     out = await link(conn, ravi, agent, skill)
     stranger = await error_of(
         delete_link(conn, caller_for(tenant, "stranger"), out["id"])
@@ -448,9 +439,8 @@ async def test_list_links_directions_and_status_filter(
     agent = await new_agent(conn, ravi, "refund-assistant")
     other_agent = await new_agent(conn, ravi, "other-assistant")
     skill = await new_skill(conn, priya)
-    await conn.execute(
-        "UPDATE registry SET visibility = 'tenant', status = 'published'"
-    )
+    await share(conn, tenant, agent, other_agent, skill)
+    await conn.execute("UPDATE registry SET status = 'published'")
     await link(conn, ravi, agent, skill)
     pending = await link(conn, priya, skill, other_agent, direction="in")
     assert pending["status"] == "pending"
@@ -482,14 +472,11 @@ async def test_list_links_hides_links_to_unreadable_resources_and_pending_from_n
     agent = await new_agent(conn, ravi)
     skill = await new_skill(conn, ravi)
     await link(conn, ravi, agent, skill)
-    await conn.execute(
-        "UPDATE registry SET visibility = 'tenant', status = 'published'"
-    )
+    await share(conn, tenant, agent, skill)
+    await conn.execute("UPDATE registry SET status = 'published'")
     viewer = caller_for(tenant, "viewer")
     assert len(await list_links(conn, viewer, agent, "out", None)) == 1
-    await conn.execute(
-        "UPDATE registry SET visibility = 'private' WHERE id = %s", (skill,)
-    )
+    await conn.execute("DELETE FROM registry_policies WHERE registry_id = %s", (skill,))
     assert await list_links(conn, viewer, agent, "out", None) == []
     err = await error_of(list_links(conn, viewer, skill, "both", None))
     assert err.status == 404
@@ -521,8 +508,10 @@ async def test_deleting_the_link_unblocks_skill_delete(
 
 
 async def test_links_endpoints_roundtrip(
-    make_client: MakeClient, tenant: uuid.UUID, conn: psycopg.AsyncConnection
+    make_client: MakeClient, tenant: uuid.UUID, pool: Pool
 ) -> None:
+    async with tenant_transaction(pool, tenant) as setup:
+        open_id = str(await open_policy(setup, tenant))
     async with (
         make_client(tenant, user="ravi") as ravi,
         make_client(tenant, user="priya") as priya,
@@ -538,13 +527,13 @@ async def test_links_endpoints_roundtrip(
                     "metadata": json.dumps(
                         {
                             **{k: v for k, v in skill_body().items() if k != "archive"},
-                            "visibility": "tenant",
+                            "policies": {"read": [open_id]},
                         }
                     )
                 },
             )
         ).json()["id"]
-        await ravi.patch(f"{BASE}/{agent}", json={"visibility": "tenant"})
+        await ravi.patch(f"{BASE}/{agent}", json={"policies": {"read": [open_id]}})
         assert (
             await priya.post(f"{BASE}/{skill}/versions/1/publish")
         ).status_code == 200

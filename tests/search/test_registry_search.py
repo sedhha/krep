@@ -19,18 +19,17 @@ async def test_ac5_visibility_matrix_in_search(
 ) -> None:
     policy = await add_policy(conn, tenant, "billing", 'token.department == "billing"')
     await add_resource(
-        conn, tenant, "priv", "Refund Private", visibility="private", created_by="u1"
+        conn, tenant, "priv", "Refund Private", open=False, created_by="u1"
     )
-    await add_resource(
-        conn, tenant, "ten", "Refund Tenant", visibility="tenant", created_by="u1"
-    )
+    await add_resource(conn, tenant, "ten", "Refund Tenant", open=True, created_by="u1")
     await add_resource(
         conn,
         tenant,
         "res",
         "Refund Restricted",
-        visibility="restricted",
-        policy_id=policy,
+        open=False,
+        policies=[policy],
+        created_by="u9",
     )
     creator = caller_for(tenant, "u1")
     other = caller_for(tenant, "u2")
@@ -50,8 +49,8 @@ async def test_ac6_hidden_rows_absent_and_no_total(
         tenant,
         "res",
         "Refund Restricted",
-        visibility="restricted",
-        policy_id=policy,
+        open=False,
+        policies=[policy],
     )
     hits = await registry_search(
         conn, caller_for(tenant, "u2", {"department": "sales"}), q="refund"
@@ -69,17 +68,13 @@ async def test_ac7_recall_with_filter_pages_exactly(
             tenant,
             f"hidden-{i}",
             f"Refund Hidden {i}",
-            visibility="restricted",
-            policy_id=policy,
+            open=False,
+            policies=[policy],
         )
     for i in range(12):
-        await add_resource(
-            conn, tenant, f"match-{i}", f"Refund Agent {i}", visibility="tenant"
-        )
+        await add_resource(conn, tenant, f"match-{i}", f"Refund Agent {i}", open=True)
     for i in range(8):
-        await add_resource(
-            conn, tenant, f"other-{i}", f"Invoice Agent {i}", visibility="tenant"
-        )
+        await add_resource(conn, tenant, f"other-{i}", f"Invoice Agent {i}", open=True)
     caller = caller_for(tenant, "u9")
     page1 = await registry_search(conn, caller, q="refund", limit=10, offset=0)
     page2 = await registry_search(conn, caller, q="refund", limit=10, offset=10)
@@ -103,8 +98,8 @@ async def test_ac8_policy_error_hides_resource_and_request_succeeds(
         tenant,
         "res",
         "Refund Restricted",
-        visibility="restricted",
-        policy_id=policy,
+        open=False,
+        policies=[policy],
     )
     await add_resource(conn, tenant, "ten", "Refund Tenant")
     assert await slugs(conn, caller_for(tenant, "u2", {"a": "b"})) == ["ten"]
@@ -239,9 +234,7 @@ async def test_offset_beyond_branch_depth_returns_what_branches_produced(
 async def test_other_users_private_resource_hidden_in_same_tenant(
     conn: psycopg.AsyncConnection, tenant: uuid.UUID
 ) -> None:
-    await add_resource(
-        conn, tenant, "mine", "Refund Mine", visibility="private", created_by="u2"
-    )
+    await add_resource(conn, tenant, "mine", "Refund Mine", open=False, created_by="u2")
     assert await slugs(conn, caller_for(tenant, "u1")) == []
     assert await slugs(conn, caller_for(tenant, "u2")) == ["mine"]
 

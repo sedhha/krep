@@ -24,6 +24,7 @@ from krep.registry.resources import (
     set_archived,
     update_resource,
 )
+from tests.registry.conftest import open_policy
 
 AGENT_SPEC: dict[str, Any] = {
     "model": "claude-sonnet-5-5",
@@ -46,7 +47,6 @@ def agent_body(slug: str = "refund-assistant", **extra: Any) -> dict[str, Any]:
         "name": "Refund Assistant",
         "description": "Handles refunds.",
         "tags": ["billing"],
-        "visibility": "private",
         "spec": AGENT_SPEC,
         **extra,
     }
@@ -118,7 +118,7 @@ async def test_create_agent_returns_7_2_shape_and_writes_all_rows(
     assert out["type"] == "agent"
     assert out["slug"] == "refund-assistant"
     assert out["status"] == "draft"
-    assert out["visibility"] == "private"
+    assert out["scope"] == "org"
     assert out["current_version"] is None
     assert out["version"] == {"version": 1, "status": "draft"}
     cur = await conn.execute(
@@ -266,18 +266,17 @@ async def test_draft_cap_is_per_type(
     assert out["type"] == "skill"
 
 
-@pytest.mark.parametrize("visibility", ["private", "tenant"])
-async def test_ac5_get_visible_matrix_private_and_tenant(
-    conn: psycopg.AsyncConnection, tenant: uuid.UUID, visibility: str
+@pytest.mark.parametrize("shared", [False, True])
+async def test_ac5_get_visible_matrix_private_and_shared(
+    conn: psycopg.AsyncConnection, tenant: uuid.UUID, shared: bool
 ) -> None:
-    out = await create_resource(
-        conn, caller_for(tenant), agent_body(visibility=visibility)
-    )
+    policies = {"read": [await open_policy(conn, tenant)]} if shared else {}
+    out = await create_resource(conn, caller_for(tenant), agent_body(policies=policies))
     await publish_raw(conn, out["id"])
     creator = await get_visible(conn, caller_for(tenant, "u1"), out["id"])
     other = await get_visible(conn, caller_for(tenant, "u2"), out["id"])
     assert creator is not None
-    assert (other is not None) == (visibility == "tenant")
+    assert (other is not None) == shared
 
 
 async def test_ac5_get_visible_restricted_follows_policy(
@@ -289,7 +288,7 @@ async def test_ac5_get_visible_restricted_follows_policy(
     out = await create_resource(
         conn,
         caller_for(tenant),
-        agent_body(visibility="restricted", policy_id=policy.id),
+        agent_body(policies={"read": [policy.id]}),
     )
     await publish_raw(conn, out["id"])
     match = caller_for(
@@ -306,7 +305,9 @@ async def test_ac5_get_visible_other_tenant_is_none(
     conn: psycopg.AsyncConnection, tenant: uuid.UUID
 ) -> None:
     out = await create_resource(
-        conn, caller_for(tenant), agent_body(visibility="tenant")
+        conn,
+        caller_for(tenant),
+        agent_body(policies={"read": [await open_policy(conn, tenant)]}),
     )
     await publish_raw(conn, out["id"])
     stranger = uuid.uuid4()
@@ -324,7 +325,9 @@ async def test_draft_visible_only_to_owner_and_admin(
     conn: psycopg.AsyncConnection, tenant: uuid.UUID
 ) -> None:
     out = await create_resource(
-        conn, caller_for(tenant), agent_body(visibility="tenant")
+        conn,
+        caller_for(tenant),
+        agent_body(policies={"read": [await open_policy(conn, tenant)]}),
     )
     assert await get_visible(conn, caller_for(tenant, "u1"), out["id"]) is not None
     assert (
@@ -351,9 +354,9 @@ async def test_can_edit_is_owner_or_admin(
 ) -> None:
     out = await create_resource(conn, caller_for(tenant), agent_body())
     row = await lock_resource(conn, out["id"])
-    assert await can_edit(caller_for(tenant, "u1"), row)
-    assert await can_edit(caller_for(tenant, "u2", admin=True), row)
-    assert not await can_edit(caller_for(tenant, "u2"), row)
+    assert await can_edit(conn, caller_for(tenant, "u1"), row)
+    assert await can_edit(conn, caller_for(tenant, "u2", admin=True), row)
+    assert not await can_edit(conn, caller_for(tenant, "u2"), row)
 
 
 async def test_lock_resource_missing_is_404(
@@ -392,36 +395,15 @@ async def test_list_shows_own_with_drafts_and_admin_sees_all(
     )
 
 
-async def test_update_restricted_requires_policy_id(
-    conn: psycopg.AsyncConnection, tenant: uuid.UUID
-) -> None:
-    out = await create_resource(conn, caller_for(tenant), agent_body())
-    with pytest.raises(ApiError) as exc:
-        await update_resource(
-            conn, caller_for(tenant), out["id"], {"visibility": "restricted"}
-        )
-    assert (exc.value.status, exc.value.error) == (422, "validation_failed")
-    assert exc.value.extra["errors"][0]["field"] == "policy_id"
-
-
-async def test_update_switching_away_from_restricted_keeps_policy_id(
+async def test_update_policies_replaces_slot(
     conn: psycopg.AsyncConnection, tenant: uuid.UUID
 ) -> None:
     policy = await write_policy(conn, tenant, "p", parse('token.a == "b"'), "admin")
-    out = await create_resource(
-        conn,
-        caller_for(tenant),
-        agent_body(visibility="restricted", policy_id=policy.id),
-    )
+    out = await create_resource(conn, caller_for(tenant), agent_body())
     updated = await update_resource(
-        conn, caller_for(tenant), out["id"], {"visibility": "tenant"}
+        conn, caller_for(tenant), out["id"], {"policies": {"read": [policy.id]}}
     )
-    assert updated["visibility"] == "tenant"
-    cur = await conn.execute(
-        "SELECT policy_id FROM registry WHERE id = %s", (out["id"],)
-    )
-    row = await cur.fetchone()
-    assert row and row[0] == policy.id
+    assert updated["policies"] == {"read": [policy.id], "manage": []}
 
 
 async def test_update_unknown_policy_is_422(
@@ -433,10 +415,10 @@ async def test_update_unknown_policy_is_422(
             conn,
             caller_for(tenant),
             out["id"],
-            {"visibility": "restricted", "policy_id": uuid.uuid4()},
+            {"policies": {"read": [uuid.uuid4()]}},
         )
     assert exc.value.status == 422
-    assert exc.value.extra["errors"][0]["field"] == "policy_id"
+    assert exc.value.extra["errors"][0]["field"] == "policies.read"
 
 
 async def test_update_applies_fields_and_stamps_updater(
@@ -471,7 +453,9 @@ async def test_update_by_non_owner_is_403_when_visible_and_404_when_hidden(
     conn: psycopg.AsyncConnection, tenant: uuid.UUID
 ) -> None:
     shared = await create_resource(
-        conn, caller_for(tenant, "u1"), agent_body("shared-one", visibility="tenant")
+        conn,
+        caller_for(tenant, "u1"),
+        agent_body("shared-one", policies={"read": [await open_policy(conn, tenant)]}),
     )
     await publish_raw(conn, shared["id"])
     hidden = await create_resource(
@@ -494,7 +478,9 @@ async def test_archive_hides_from_other_users_but_owner_still_reads(
     conn: psycopg.AsyncConnection, tenant: uuid.UUID
 ) -> None:
     out = await create_resource(
-        conn, caller_for(tenant, "u1"), agent_body(visibility="tenant")
+        conn,
+        caller_for(tenant, "u1"),
+        agent_body(policies={"read": [await open_policy(conn, tenant)]}),
     )
     await publish_raw(conn, out["id"])
     archived = await set_archived(conn, caller_for(tenant, "u1"), out["id"], True)
@@ -523,7 +509,9 @@ async def test_archive_by_non_owner_is_403(
     conn: psycopg.AsyncConnection, tenant: uuid.UUID
 ) -> None:
     out = await create_resource(
-        conn, caller_for(tenant, "u1"), agent_body(visibility="tenant")
+        conn,
+        caller_for(tenant, "u1"),
+        agent_body(policies={"read": [await open_policy(conn, tenant)]}),
     )
     await publish_raw(conn, out["id"])
     with pytest.raises(ApiError) as exc:
@@ -614,7 +602,9 @@ async def test_delete_by_non_owner_is_403(
     conn: psycopg.AsyncConnection, tenant: uuid.UUID
 ) -> None:
     out = await create_resource(
-        conn, caller_for(tenant, "u1"), agent_body(visibility="tenant")
+        conn,
+        caller_for(tenant, "u1"),
+        agent_body(policies={"read": [await open_policy(conn, tenant)]}),
     )
     await publish_raw(conn, out["id"])
     with pytest.raises(ApiError) as exc:

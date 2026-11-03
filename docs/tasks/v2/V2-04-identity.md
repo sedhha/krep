@@ -4,7 +4,7 @@ Spec: 3.1, 3.2, 3.3, 3.4 (FastAPI side only), 9.1 (`GET /me`). Acceptance: 1, 2,
 
 ## Files
 - Create: `src/krep/identity/selector.py`, `login.py`, `platform.py`, `tests/identity/test_selector.py`, `test_login_jwt.py`, `test_platform_admin.py`, `test_me.py`
-- Modify: `src/krep/identity/resolve.py` (`Caller` gets `product_id`, `is_platform_admin`, `org_slug`; `resolve_caller` dispatches to selector mode when `X-Org` is present), `src/krep/api/deps.py`, `src/krep/api/main.py` (`GET /v1/me`), `src/krep/config.py`, `src/krep/cli.py` (`krep platform-admin grant --username`), `.env.example`, `README.md`
+- Modify: `src/krep/identity/resolve.py` (`Caller` already has `product_id` (added in V2-02) and gets `can_read`, `is_platform_admin`, `org_slug`; `resolve_caller` dispatches to selector mode when `X-Org` is present), `src/krep/api/deps.py`, `src/krep/api/main.py` (`GET /v1/me`), `src/krep/config.py`, `src/krep/cli.py` (`krep platform-admin grant --username`), `.env.example`, `README.md`
 
 ## Consumes
 V2-01 tables and `auth_users` view; V2-02 `Caller.product_id` usage; V2-03 `load_effective`, adapters; V1 `identity/jwt.py` JWKS verification.
@@ -21,7 +21,8 @@ V2-01 tables and `auth_users` view; V2-02 `Caller.product_id` usage; V2-03 `load
 3. Platform admin tests (ac6 identity side): table grant and env key both work; key unset disables key auth; org JWT or non-admin user never gets platform identity; `X-Org` plus platform identity is `can_admin`.
 4. V1 compatibility: requests without `X-Org` resolve exactly as before (run the V1 identity suite unchanged).
 5. Review-focus: header casing, empty `X-Product`, a JWT with `groups` claim trying to inject groups (ignored: groups come from `memberships`), clock skew, JWKS fetch failure fails closed.
-6. Implement.
+6. Capability read gate (not covered elsewhere; spec 4.1, 3.6): `resolve` evaluates `registry-readers` alongside admins/writers into `Caller.can_read` (writers and admins imply read; missing policy fails closed); `can_read` in `registry/resources.py`, search and the `Authenticated` routes deny a caller without it. V1 tenants created by `krep tenant init` have no `registry-readers`, so decide there whether init creates it (as `open`, matching the V2-01 backfill).
+7. Implement.
 
 ## Done when
 Acceptance 1-4 and the identity side of 6 pass; V1 identity tests unchanged and green.

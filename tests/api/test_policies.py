@@ -172,12 +172,14 @@ async def test_restore_unknown_rev_is_not_found(client: httpx.AsyncClient) -> No
 
 
 async def insert_resource(
-    owner_exec: OwnerExec, tenant: uuid.UUID, policy_id: str, slug: str, visibility: str
+    owner_exec: OwnerExec, tenant: uuid.UUID, policy_id: str, slug: str
 ) -> None:
     await owner_exec(
-        "INSERT INTO registry (tenant_id, type, slug, name, visibility, policy_id, "
-        "created_by, updated_by) VALUES (%s, 'agent', %s, %s, %s, %s, 'u1', 'u1')",
-        (tenant, slug, slug, visibility, policy_id),
+        "WITH r AS (INSERT INTO registry (tenant_id, type, slug, name, created_by, updated_by) "
+        "VALUES (%s, 'agent', %s, %s, 'u1', 'u1') RETURNING id) "
+        "INSERT INTO registry_policies (registry_id, tenant_id, action, policy_id) "
+        "SELECT r.id, %s, 'read', %s FROM r",
+        (tenant, slug, slug, tenant, policy_id),
     )
 
 
@@ -186,8 +188,8 @@ async def test_usage_count_and_resources_reflect_referencing_rows(
 ) -> None:
     created = await create(client, "used")
     other = await create(client, "unused", 'token.a == "x"')
-    await insert_resource(owner_exec, tenant_id, created["id"], "res-one", "restricted")
-    await insert_resource(owner_exec, tenant_id, created["id"], "res-two", "tenant")
+    await insert_resource(owner_exec, tenant_id, created["id"], "res-one")
+    await insert_resource(owner_exec, tenant_id, created["id"], "res-two")
     path = f"{BASE}/{created['id']}"
     assert (await client.get(path)).json()["usage_count"] == 2
     items = (await client.get(f"{path}/resources")).json()["items"]
@@ -203,7 +205,7 @@ async def test_ac12_delete_in_use_policy_conflicts(
     client: httpx.AsyncClient, owner_exec: OwnerExec, tenant_id: uuid.UUID
 ) -> None:
     created = await create(client, "busy")
-    await insert_resource(owner_exec, tenant_id, created["id"], "res-one", "restricted")
+    await insert_resource(owner_exec, tenant_id, created["id"], "res-one")
     r = await client.delete(f"{BASE}/{created['id']}")
     assert r.status_code == 409
     assert r.json()["error"] == "policy_in_use"

@@ -131,7 +131,7 @@ async def _visible_version(
 ) -> Row:
     version = await fetch_version(conn, resource["id"], n)
     if version is None or (
-        version["status"] == "draft" and not await can_edit(caller, resource)
+        version["status"] == "draft" and not await can_edit(conn, caller, resource)
     ):
         raise version_not_found()
     return version
@@ -141,7 +141,7 @@ async def list_versions(
     conn: AsyncConnection, caller: Caller, resource_id: UUID
 ) -> list[Row]:
     resource = await _readable(conn, caller, resource_id)
-    editable = await can_edit(caller, resource)
+    editable = await can_edit(conn, caller, resource)
     async with conn.cursor(row_factory=dict_row) as cur:
         await cur.execute(
             f"SELECT {VERSION_COLUMNS} FROM registry_versions WHERE registry_id = %s "

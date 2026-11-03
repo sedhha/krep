@@ -15,7 +15,7 @@ from krep.registry.specs import FieldError
 from krep.registry.versions import create_draft, get_version, replace_draft
 from krep.search.engine import registry_search
 from tests.conftest import alembic, role_url
-from tests.registry.conftest import caller_for, new_skill, scalar
+from tests.registry.conftest import caller_for, new_skill, scalar, share
 
 TOOL_SQL = """
 INSERT INTO registry_types VALUES ('tool', 'tools', 'HTTP tool');
@@ -82,7 +82,6 @@ def tool_body(slug: str = "lookup-order", **extra: Any) -> dict[str, Any]:
         "name": "Order lookup",
         "description": "Looks up refund order status",
         "tags": ["orders"],
-        "visibility": "tenant",
         "spec": {
             "method": "GET",
             "url": "https://orders.example.com/{id}",
@@ -101,6 +100,7 @@ async def test_ac27_new_type_is_created_versioned_published_and_searched(
     created = await create_resource(tconn, caller, tool_body())
     rid = created["id"]
     assert created["type"] == "tool"
+    await share(tconn, ttenant, rid)
 
     v1 = await get_version(tconn, caller, rid, 1)
     assert v1["spec"]["method"] == "GET"

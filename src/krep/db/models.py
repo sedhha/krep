@@ -93,18 +93,11 @@ class Registry(Base):
         CheckConstraint("char_length(name) BETWEEN 1 AND 120"),
         CheckConstraint("char_length(description) <= 2000"),
         CheckConstraint("cardinality(tags) <= 20"),
-        CheckConstraint("visibility IN ('private','tenant','restricted')"),
         CheckConstraint("status IN ('draft','published','archived')"),
         CheckConstraint("pg_column_size(meta) <= 16384"),
-        CheckConstraint("visibility <> 'restricted' OR policy_id IS NOT NULL"),
         UniqueConstraint("tenant_id", "type", "slug"),
         UniqueConstraint("id", "type"),
         UniqueConstraint("id", "tenant_id"),
-        ForeignKeyConstraint(
-            ["policy_id", "tenant_id"],
-            ["access_policies.id", "access_policies.tenant_id"],
-            ondelete="RESTRICT",
-        ),
         ForeignKeyConstraint(
             ["current_version_id"],
             ["registry_versions.id"],
@@ -132,8 +125,6 @@ class Registry(Base):
     name: Mapped[str] = mapped_column(Text)
     description: Mapped[str] = mapped_column(Text, server_default="")
     tags: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
-    visibility: Mapped[str] = mapped_column(Text, server_default="private")
-    policy_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     status: Mapped[str] = mapped_column(Text, server_default="draft")
     current_version_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     next_version: Mapped[int] = mapped_column(Integer, server_default=text("1"))

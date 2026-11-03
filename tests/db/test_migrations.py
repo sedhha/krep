@@ -9,7 +9,7 @@ async def test_ac28_downgrade_base_then_upgrade_head(scratch_db: str) -> None:
     alembic(scratch_db, "upgrade", "head")
     with psycopg.connect(role_url("krep_owner", scratch_db)) as conn:
         assert conn.execute("SELECT version_num FROM alembic_version").fetchone() == (
-            "0009",
+            "0010",
         )
     alembic(scratch_db, "downgrade", "base")
     with psycopg.connect(role_url("krep_owner", scratch_db)) as conn:
@@ -48,6 +48,7 @@ async def test_seed_global_limits(owner_conn: AsyncConnection) -> None:
         "max_policy_nodes": 100,
         "max_synonym_groups": 200,
         "max_policy_history": 20,
+        "max_policies_per_resource_action": 10,
     }
 
 

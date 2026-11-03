@@ -29,6 +29,7 @@ class Caller:
     doc: dict[str, Any]
     can_write: bool
     can_admin: bool
+    product_id: UUID | None = None
 
 
 def _unauthenticated() -> ApiError:

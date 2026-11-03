@@ -26,6 +26,7 @@ from tests.registry.conftest import (
     caller_for,
     new_agent,
     new_skill,
+    open_policy,
     scalar,
     skill_body,
     skill_zip,
@@ -253,7 +254,13 @@ async def test_non_owner_gets_403_on_visible_and_404_on_hidden(
     owner, other = caller_for(tenant, "u1"), caller_for(tenant, "u2")
     hidden = (await create_resource(conn, owner, agent_body("hidden-one")))["id"]
     shown = (
-        await create_resource(conn, owner, agent_body("shown-one", visibility="tenant"))
+        await create_resource(
+            conn,
+            owner,
+            agent_body(
+                "shown-one", policies={"read": [await open_policy(conn, tenant)]}
+            ),
+        )
     )["id"]
     await publish(conn, owner, shown, 1)
     with pytest.raises(ApiError) as a:
@@ -271,7 +278,13 @@ async def test_list_shows_drafts_only_to_owner_or_admin(
         caller_for(tenant, "u2"),
         caller_for(tenant, "u3", True),
     )
-    rid = (await create_resource(conn, owner, agent_body(visibility="tenant")))["id"]
+    rid = (
+        await create_resource(
+            conn,
+            owner,
+            agent_body(policies={"read": [await open_policy(conn, tenant)]}),
+        )
+    )["id"]
     await publish(conn, owner, rid, 1)
     await create_draft(conn, owner, rid)
     assert [v["version"] for v in await list_versions(conn, owner, rid)] == [1, 2]
@@ -284,7 +297,13 @@ async def test_get_draft_version_is_404_for_non_editor(
     conn: psycopg.AsyncConnection, tenant: uuid.UUID
 ) -> None:
     owner, other = caller_for(tenant, "u1"), caller_for(tenant, "u2")
-    rid = (await create_resource(conn, owner, agent_body(visibility="tenant")))["id"]
+    rid = (
+        await create_resource(
+            conn,
+            owner,
+            agent_body(policies={"read": [await open_policy(conn, tenant)]}),
+        )
+    )["id"]
     await publish(conn, owner, rid, 1)
     await create_draft(conn, owner, rid)
     assert (await get_version(conn, other, rid, 1))["status"] == "published"

@@ -54,7 +54,7 @@ async def _root_version(
     else:
         row = await fetch_version(conn, resource["id"], version)
     if row is None or (
-        row["status"] == "draft" and not await can_edit(caller, resource)
+        row["status"] == "draft" and not await can_edit(conn, caller, resource)
     ):
         raise version_not_found()
     return row

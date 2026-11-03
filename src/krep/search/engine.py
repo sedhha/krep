@@ -16,17 +16,24 @@ MAX_OFFSET = 500
 _VISIBLE = """
 WITH sat AS MATERIALIZED (
   SELECT p.id FROM access_policies p
-  WHERE p.tenant_id = %(tenant)s
-    AND jsonb_path_match(%(doc)s, p.compiled_path, %(vars)s, true)
+  WHERE (p.tenant_id = %(tenant)s
+         OR p.id IN (SELECT rp.policy_id FROM registry_policies rp
+                     JOIN registry g ON g.id = rp.registry_id WHERE g.scope = 'global'))
+    AND (p.kind = 'open' OR jsonb_path_match(%(doc)s, p.compiled_path, %(vars)s, true))
+), readable AS MATERIALIZED (
+  SELECT DISTINCT rp.registry_id FROM registry_policies rp
+  WHERE rp.action = 'read' AND rp.policy_id IN (SELECT id FROM sat)
 ), visible AS MATERIALIZED (
   SELECT r.id, r.name, r.search_tsv, r.updated_at
   FROM registry r
-  WHERE r.tenant_id = %(tenant)s AND r.status = 'published'
+  WHERE (r.tenant_id = %(tenant)s OR r.scope = 'global')
+    AND (r.scope <> 'product' OR r.product_id = %(product)s)
+    AND r.status = 'published'
     AND (%(type)s::text IS NULL OR r.type = %(type)s)
+    AND (%(scope)s::text IS NULL OR r.scope = %(scope)s)
     AND (%(tags)s::text[] IS NULL OR r.tags @> %(tags)s)
-    AND (r.visibility = 'tenant'
-      OR (r.visibility = 'private' AND r.created_by = %(user)s)
-      OR (r.visibility = 'restricted' AND r.policy_id IN (SELECT id FROM sat)))
+    AND ((r.tenant_id = %(tenant)s AND (%(admin)s OR r.created_by = %(user)s))
+      OR r.id IN (SELECT registry_id FROM readable))
 )
 """
 
@@ -67,7 +74,7 @@ LIMIT %(limit)s OFFSET %(offset)s
 )
 
 _HYDRATE = """
-SELECT r.id, r.type, r.slug, r.name, r.description, r.tags, v.version AS current_version
+SELECT r.id, r.type, r.slug, r.name, r.description, r.tags, r.scope, v.version AS current_version
 FROM registry r LEFT JOIN registry_versions v ON v.id = r.current_version_id
 WHERE r.id = ANY(%s)
 """
@@ -81,6 +88,7 @@ class SearchHit:
     name: str
     description: str
     tags: list[str]
+    scope: str
     current_version: int | None
     score: float
 
@@ -91,6 +99,7 @@ async def registry_search(
     *,
     q: str,
     type: str | None = None,
+    scope: str | None = None,
     tags: Sequence[str] | None = None,
     limit: int = 10,
     offset: int = 0,
@@ -101,13 +110,22 @@ async def registry_search(
     params: dict[str, Any] = {
         "tenant": caller.tenant_id,
         "doc": Jsonb(caller.doc),
-        "vars": Jsonb({"tenant_id": str(caller.tenant_id)}),
+        "vars": Jsonb(
+            {
+                "tenant_id": str(caller.tenant_id),
+                "product_id": str(caller.product_id) if caller.product_id else None,
+            }
+        ),
+        "product": caller.product_id,
+        "admin": caller.can_admin,
         "user": caller.user_id,
         "type": type,
+        "scope": scope,
         "tags": list(tags) if tags else None,
         "limit": limit,
         "offset": offset,
     }
+    await conn.execute("SELECT set_config('jit', 'off', true)")
     listing = not q.strip()
     if not listing:
         q_norm = normalise(q)

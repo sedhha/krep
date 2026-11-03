@@ -126,7 +126,8 @@ def _view(row: PolicyRow, usage_count: int, **extra: Any) -> dict[str, Any]:
 
 async def _usage_count(conn: AsyncConnection, policy_id: UUID) -> int:
     cur = await conn.execute(
-        "SELECT count(*) FROM registry WHERE policy_id = %s", (policy_id,)
+        "SELECT count(DISTINCT registry_id) FROM registry_policies WHERE policy_id = %s",
+        (policy_id,),
     )
     row = await cur.fetchone()
     return row[0] if row else 0
@@ -208,7 +209,7 @@ async def create_policy(caller: Admin, conn: Conn, body: PolicyIn) -> dict[str, 
 @router.get("")
 async def list_policies(caller: Admin, conn: Conn) -> dict[str, Any]:
     cur = await conn.execute(
-        f"SELECT {COLUMNS}, (SELECT count(*) FROM registry r WHERE r.policy_id = p.id) "
+        f"SELECT {COLUMNS}, (SELECT count(DISTINCT rp.registry_id) FROM registry_policies rp WHERE rp.policy_id = p.id) "
         "FROM access_policies p WHERE tenant_id = %s ORDER BY name",
         (caller.tenant_id,),
     )
@@ -304,8 +305,10 @@ async def policy_resources(
 ) -> dict[str, Any]:
     await _fetch(conn, caller.tenant_id, policy_id)
     cur = await conn.execute(
-        "SELECT id, type, slug, name, status, visibility FROM registry "
-        "WHERE tenant_id = %s AND policy_id = %s ORDER BY name, id LIMIT %s",
+        "SELECT r.id, r.type, r.slug, r.name, r.status, r.scope FROM registry r "
+        "WHERE r.tenant_id = %s AND r.id IN "
+        "(SELECT registry_id FROM registry_policies WHERE policy_id = %s) "
+        "ORDER BY r.name, r.id LIMIT %s",
         (caller.tenant_id, policy_id, limit),
     )
     items = [
@@ -315,7 +318,7 @@ async def policy_resources(
             "slug": r[2],
             "name": r[3],
             "status": r[4],
-            "visibility": r[5],
+            "scope": r[5],
         }
         for r in await cur.fetchall()
     ]

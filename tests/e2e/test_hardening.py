@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.routing import APIRoute
 from starlette.routing import Route
 
-from tests.e2e.conftest import make_user
+from tests.e2e.conftest import make_user, open_policy_id
 from tests.e2e.test_walkthrough import principal_header, skill_zip
 from tests.identity.conftest import Keys
 
@@ -52,9 +52,12 @@ async def test_no_request_data_reaches_the_logs(
     app: FastAPI,
     keys: Keys,
     onboarded: str,
+    tenant: uuid.UUID,
+    migrated_db: str,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
     caplog.set_level(logging.DEBUG)
+    open_id = await open_policy_id(migrated_db, tenant)
     writer = make_user(
         app,
         keys,
@@ -71,7 +74,7 @@ async def test_no_request_data_reaches_the_logs(
                 "type": "agent",
                 "slug": "sentinel-agent",
                 "name": "Sentinel Agent",
-                "visibility": "tenant",
+                "policies": {"read": [open_id]},
                 "spec": {
                     "model": "claude-sonnet-5-5",
                     "system_prompt": f"{SENTINEL}-prompt",

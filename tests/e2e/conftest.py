@@ -101,3 +101,22 @@ def make_user(
         base_url="http://t",
         headers={"Authorization": f"Bearer {token}"},
     )
+
+
+async def open_policy_id(migrated_db: str, tenant: uuid.UUID) -> str:
+    async with await AsyncConnection.connect(
+        role_url("krep_owner", migrated_db), autocommit=True
+    ) as conn:
+        await conn.execute(
+            "SELECT set_config('app.tenant_id', %s, false)", (str(tenant),)
+        )
+        cur = await conn.execute(
+            "INSERT INTO access_policies (tenant_id, name, ast, source, compiled_path, "
+            "compiler_version, reserved, kind, created_by, updated_by) "
+            "VALUES (%s, 'open-to-all', '{}'::jsonb, 'true', 'true'::jsonpath, 1, true, 'open', "
+            "'t', 't') ON CONFLICT (tenant_id, name) DO UPDATE SET kind = 'open' RETURNING id",
+            (tenant,),
+        )
+        row = await cur.fetchone()
+        assert row is not None
+        return str(row[0])

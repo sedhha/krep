@@ -25,8 +25,9 @@ class CreateIn(BaseModel):
     name: str
     description: str | None = None
     tags: list[str] = []
-    visibility: str = "private"
-    policy_id: UUID | None = None
+    scope: str = "org"
+    product: str | None = None
+    policies: dict[str, list[UUID]] = {}
     meta: dict[str, Any] = {}
     spec: dict[str, Any] | None = None
 
@@ -35,13 +36,14 @@ class PatchIn(BaseModel):
     name: str | None = None
     description: str | None = None
     tags: list[str] | None = None
-    visibility: str | None = None
-    policy_id: UUID | None = None
+    scope: str | None = None
+    product: str | None = None
+    policies: dict[str, list[UUID]] | None = None
     meta: dict[str, Any] | None = None
 
     @model_validator(mode="after")
-    def _only_policy_id_is_nullable(self) -> Self:
-        for key in self.model_fields_set - {"policy_id"}:
+    def _only_product_is_nullable(self) -> Self:
+        for key in self.model_fields_set - {"product"}:
             if getattr(self, key) is None:
                 raise ValueError(f"{key} cannot be null")
         return self
@@ -105,11 +107,20 @@ async def list_resources(
     conn: Conn,
     type: str | None = None,
     status: str | None = None,
+    scope: str | None = None,
+    product: str | None = None,
     limit: Annotated[int, Query(ge=1, le=200)] = resources.DEFAULT_LIST_LIMIT,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> dict[str, Any]:
     items = await resources.list_resources(
-        conn, caller, type=type, status=status, limit=limit, offset=offset
+        conn,
+        caller,
+        type=type,
+        status=status,
+        scope=scope,
+        product=product,
+        limit=limit,
+        offset=offset,
     )
     return {"items": items}
 

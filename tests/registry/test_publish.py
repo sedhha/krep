@@ -21,6 +21,7 @@ from tests.registry.conftest import (
     new_skill,
     publish_agent_versions,
     scalar,
+    share,
     skill_zip,
     spec_with,
 )
@@ -239,9 +240,7 @@ async def test_publish_by_non_owner_is_403_visible_or_404_hidden(
         await publish(conn, other, rid, 1)
     assert exc.value.status == 404
     await publish(conn, owner, rid, 1)
-    await conn.execute(
-        "UPDATE registry SET visibility = 'tenant' WHERE id = %s", (rid,)
-    )
+    await share(conn, tenant, rid)
     await create_draft(conn, owner, rid)
     with pytest.raises(ApiError) as exc2:
         await publish(conn, other, rid, 2)

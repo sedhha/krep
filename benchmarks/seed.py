@@ -46,27 +46,44 @@ async def _seed_resources(
     conn: AsyncConnection, tenant: uuid.UUID, policy_ids: list[uuid.UUID]
 ) -> None:
     restricted = int(RESTRICTED_SHARE * 10)
+    cur = await conn.execute(
+        "INSERT INTO access_policies (tenant_id, name, ast, source, compiled_path, "
+        "compiler_version, reserved, kind, created_by, updated_by) "
+        "VALUES (%s, 'open-to-all', '{}'::jsonb, 'true', 'true'::jsonpath, 1, true, "
+        "'open', 'bench', 'bench') "
+        "ON CONFLICT (tenant_id, name) DO UPDATE SET kind = 'open' RETURNING id",
+        (tenant,),
+    )
+    open_row = await cur.fetchone()
+    assert open_row is not None
     await conn.execute(
-        "INSERT INTO registry (tenant_id, type, slug, name, description, tags, visibility, "
-        "policy_id, status, created_by, updated_by) "
+        "INSERT INTO registry (tenant_id, type, slug, name, description, tags, "
+        "status, created_by, updated_by) "
         "SELECT %(tenant)s, 'agent', 'agent-' || i, "
         "(%(words)s::text[])[1 + i %% 10] || ' assistant ' || i, "
         "'Handles ' || (%(words)s::text[])[1 + (i * 7) %% 10] || ' requests for team ' || i %% 50, "
         "ARRAY[(%(words)s::text[])[1 + i %% 10]], "
-        "CASE WHEN i %% 10 < %(restricted)s THEN 'restricted' "
-        "WHEN i %% 10 = 9 THEN 'private' ELSE 'tenant' END, "
-        "CASE WHEN i %% 10 < %(restricted)s THEN (%(policies)s::uuid[])[1 + i %% %(n)s] END, "
         "'published', 'owner-' || i %% 20, 'owner-' || i %% 20 "
         "FROM generate_series(1, %(count)s) AS i",
+        {"tenant": tenant, "words": _WORDS, "count": RESOURCES},
+    )
+    await conn.execute(
+        "INSERT INTO registry_policies (registry_id, tenant_id, action, policy_id) "
+        "SELECT r.id, r.tenant_id, 'read', "
+        "CASE WHEN n %% 10 < %(restricted)s THEN (%(policies)s::uuid[])[1 + n %% %(n)s] "
+        "ELSE %(open)s::uuid END "
+        "FROM (SELECT r.*, substr(r.slug, 7)::int AS n FROM registry r "
+        "WHERE r.tenant_id = %(tenant)s AND r.slug LIKE 'agent-%%') r "
+        "WHERE r.n %% 10 <> 9",
         {
             "tenant": tenant,
-            "words": _WORDS,
             "restricted": restricted,
             "policies": policy_ids,
             "n": len(policy_ids),
-            "count": RESOURCES,
+            "open": open_row[0],
         },
     )
+    await conn.execute("ANALYZE registry_policies")
 
 
 async def _seed_bundle(

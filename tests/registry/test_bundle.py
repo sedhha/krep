@@ -17,6 +17,7 @@ from tests.registry.conftest import (
     new_agent,
     new_skill,
     publish_skill_versions,
+    share,
     skill_zip,
     version_id_of,
 )
@@ -244,9 +245,7 @@ async def test_dependency_included_though_caller_cannot_discover_it(
     skill = await published_skill(conn, tenant, "hidden-skill")
     agent = await new_agent(conn, owner)
     await create_link(conn, owner, agent, skill, "uses", "out", None, True)
-    await conn.execute(
-        "UPDATE registry SET visibility = 'tenant' WHERE id = %s", (agent,)
-    )
+    await share(conn, tenant, agent)
     await publish(conn, owner, agent, 1)
     stranger = caller_for(tenant, "stranger")
     bundle = await resolve_bundle(conn, stranger, agent, None)
@@ -268,9 +267,7 @@ async def test_unknown_version_and_foreign_draft_are_404(
 ) -> None:
     owner = caller_for(tenant)
     agent = await agent_using(conn, tenant, [])
-    await conn.execute(
-        "UPDATE registry SET visibility = 'tenant' WHERE id = %s", (agent,)
-    )
+    await share(conn, tenant, agent)
     await create_draft(conn, owner, agent)
     stranger = caller_for(tenant, "stranger")
     for version in (99, 2, 0):

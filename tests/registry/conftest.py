@@ -2,6 +2,7 @@ import io
 import uuid
 import zipfile
 from collections.abc import AsyncIterator, Awaitable, Callable
+from dataclasses import dataclass
 from typing import Any
 
 import httpx
@@ -48,7 +49,6 @@ def agent_body(slug: str = "refund-assistant", **extra: Any) -> dict[str, Any]:
         "name": "Refund Assistant",
         "description": "Handles refunds.",
         "tags": [],
-        "visibility": "private",
         "spec": AGENT_SPEC,
         **extra,
     }
@@ -160,6 +160,29 @@ async def version_id_of(
     )
 
 
+async def open_policy(conn: psycopg.AsyncConnection, tenant: uuid.UUID) -> uuid.UUID:
+    return await scalar(
+        conn,
+        "INSERT INTO access_policies (tenant_id, name, ast, source, compiled_path, "
+        "compiler_version, reserved, kind, created_by, updated_by) "
+        "VALUES (%s, 'open-to-all', '{}'::jsonb, 'true', 'true'::jsonpath, 1, true, 'open', "
+        "'t', 't') ON CONFLICT (tenant_id, name) DO UPDATE SET kind = 'open' RETURNING id",
+        tenant,
+    )
+
+
+async def share(
+    conn: psycopg.AsyncConnection, tenant: uuid.UUID, *resource_ids: uuid.UUID
+) -> None:
+    policy = await open_policy(conn, tenant)
+    for resource_id in resource_ids:
+        await conn.execute(
+            "INSERT INTO registry_policies (registry_id, tenant_id, action, policy_id) "
+            "VALUES (%s, %s, 'read', %s) ON CONFLICT DO NOTHING",
+            (resource_id, tenant, policy),
+        )
+
+
 @pytest.fixture
 def tenant() -> uuid.UUID:
     return uuid.uuid4()
@@ -228,3 +251,79 @@ def make_client(pool: Pool) -> MakeClient:
         )
 
     return make
+
+
+@dataclass
+class World:
+    conn: psycopg.AsyncConnection
+    a: uuid.UUID
+    b: uuid.UUID
+    products: dict[str, uuid.UUID]
+    open: dict[uuid.UUID, uuid.UUID]
+
+    async def use(self, tenant: uuid.UUID, platform: bool = False) -> None:
+        await self.conn.execute(
+            "SELECT set_config('app.tenant_id', %s, true)", (str(tenant),)
+        )
+        await self.conn.execute(
+            "SELECT set_config('app.platform_admin', %s, true)",
+            ("on" if platform else "",),
+        )
+
+    def caller(
+        self,
+        tenant: uuid.UUID,
+        user: str = "u1",
+        *,
+        admin: bool = False,
+        write: bool = True,
+        product: str | None = None,
+        token: dict[str, Any] | None = None,
+    ) -> Caller:
+        return Caller(
+            tenant,
+            user,
+            {"token": token or {}, "principal": {}},
+            write or admin,
+            admin,
+            self.products[product] if product else None,
+        )
+
+
+async def published_agent(
+    world: World,
+    caller: Caller,
+    slug: str = "refund-assistant",
+    **extra: Any,
+) -> uuid.UUID:
+    created = await create_resource(world.conn, caller, agent_body(slug, **extra))
+    await publish(world.conn, caller, created["id"], 1)
+    return created["id"]
+
+
+@pytest_asyncio.fixture
+async def world(owner_conn: psycopg.AsyncConnection) -> AsyncIterator[World]:
+    a, b = uuid.uuid4(), uuid.uuid4()
+    products: dict[str, uuid.UUID] = {}
+    opens: dict[uuid.UUID, uuid.UUID] = {}
+    for tenant in (a, b):
+        await owner_conn.execute(
+            "INSERT INTO organizations (id, slug, name, created_by) VALUES (%s, %s, 'Org', 'u')",
+            (tenant, f"org-{tenant.hex[:12]}"),
+        )
+        await owner_conn.execute(
+            "SELECT set_config('app.tenant_id', %s, true)", (str(tenant),)
+        )
+        opens[tenant] = await open_policy(owner_conn, tenant)
+    await owner_conn.execute("SELECT set_config('app.tenant_id', %s, true)", (str(a),))
+    for slug in ("alpha", "beta"):
+        products[slug] = await scalar(
+            owner_conn,
+            "INSERT INTO products (tenant_id, slug, name, created_by) "
+            "VALUES (%s, %s, %s, 'u') RETURNING id",
+            a,
+            slug,
+            slug,
+        )
+    await owner_conn.execute("SET LOCAL ROLE krep_app")
+    yield World(owner_conn, a, b, products, opens)

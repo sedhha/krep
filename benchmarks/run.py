@@ -73,9 +73,12 @@ async def explain(
     params: dict[str, Any] = {
         "tenant": caller.tenant_id,
         "doc": Jsonb(caller.doc),
-        "vars": Jsonb({"tenant_id": str(caller.tenant_id)}),
+        "vars": Jsonb({"tenant_id": str(caller.tenant_id), "product_id": None}),
+        "product": None,
+        "admin": False,
         "user": caller.user_id,
         "type": None,
+        "scope": None,
         "tags": None,
         "limit": 10,
         "offset": 0,
@@ -83,6 +86,7 @@ async def explain(
         "tsq": build_tsquery(expand(q_norm, [])),
     }
     async with tenant_transaction(pool, caller.tenant_id) as conn:
+        await conn.execute("SELECT set_config('jit', 'off', true)")
         await conn.execute(
             "SELECT set_config('pg_trgm.word_similarity_threshold', '0.3', true)"
         )

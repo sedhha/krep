@@ -62,9 +62,20 @@ async def add(
     description: str = "",
 ) -> None:
     await owner_exec(
-        "INSERT INTO registry (tenant_id, type, slug, name, description, tags, visibility, "
+        "INSERT INTO access_policies (tenant_id, name, ast, source, compiled_path, "
+        "compiler_version, reserved, kind, created_by, updated_by) "
+        "VALUES (%s, 'open-to-all', '{}'::jsonb, 'true', 'true'::jsonpath, 1, true, 'open', "
+        "'t', 't') ON CONFLICT (tenant_id, name) DO NOTHING",
+        (tenant,),
+    )
+    await owner_exec(
+        "WITH r AS (INSERT INTO registry (tenant_id, type, slug, name, description, tags, "
         "status, created_by, updated_by) "
-        "VALUES (%s, 'agent', %s, %s, %s, ARRAY['billing'], 'tenant', 'published', 'u1', 'u1')",
+        "VALUES (%s, 'agent', %s, %s, %s, ARRAY['billing'], 'published', 'u1', 'u1') "
+        "RETURNING id, tenant_id) "
+        "INSERT INTO registry_policies (registry_id, tenant_id, action, policy_id) "
+        "SELECT r.id, r.tenant_id, 'read', p.id FROM r "
+        "JOIN access_policies p ON p.tenant_id = r.tenant_id AND p.name = 'open-to-all'",
         (tenant, slug, name, description),
     )
 

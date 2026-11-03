@@ -240,7 +240,7 @@ async def test_download_hidden_resource_is_404_not_403(
     pool: Pool, tenant: uuid.UUID
 ) -> None:
     async with client_for(app_for(pool, tenant)) as a:
-        rid = (await create_skill(a, skill_zip(), visibility="private")).json()["id"]
+        rid = (await create_skill(a, skill_zip())).json()["id"]
         assert (await a.post(f"{BASE}/{rid}/versions/1/publish")).status_code == 200
 
     async def stranger() -> Caller:

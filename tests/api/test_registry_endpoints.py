@@ -24,7 +24,6 @@ AGENT: dict[str, Any] = {
     "name": "Refund Assistant",
     "description": "Handles refunds.",
     "tags": ["billing"],
-    "visibility": "tenant",
     "spec": {"model": "claude-sonnet-5-5", "system_prompt": "You help."},
 }
 
@@ -247,11 +246,14 @@ async def test_patch_updates_fields(owner: httpx.AsyncClient) -> None:
     assert (r.json()["name"], r.json()["tags"]) == ("Renamed", ["x"])
 
 
-async def test_patch_restricted_without_policy_is_422(owner: httpx.AsyncClient) -> None:
+async def test_patch_unknown_policy_is_422(owner: httpx.AsyncClient) -> None:
     created = await create_agent(owner)
-    r = await owner.patch(f"{BASE}/{created['id']}", json={"visibility": "restricted"})
+    r = await owner.patch(
+        f"{BASE}/{created['id']}",
+        json={"policies": {"read": ["7b0d6f3e-0000-4000-8000-000000000000"]}},
+    )
     assert r.status_code == 422
-    assert r.json()["errors"][0]["field"] == "policy_id"
+    assert r.json()["errors"][0]["field"] == "policies.read"
 
 
 async def test_patch_null_name_is_422(owner: httpx.AsyncClient) -> None:
@@ -306,3 +308,30 @@ async def test_types_route_is_not_shadowed_by_id_route(
         r = await c.get(f"{BASE}/types")
     assert r.status_code == 200
     assert "types" in r.json()
+
+
+async def test_v2ac12_global_scope_over_api_is_403_scope_not_allowed(
+    owner: httpx.AsyncClient,
+) -> None:
+    r = await owner.post(BASE, json={**AGENT, "scope": "global"})
+    assert (r.status_code, r.json()["error"]) == (403, "scope_not_allowed")
+    created = await create_agent(owner)
+    r = await owner.patch(f"{BASE}/{created['id']}", json={"scope": "global"})
+    assert (r.status_code, r.json()["error"]) == (403, "scope_not_allowed")
+
+
+async def test_v2_create_response_and_get_carry_scope_and_policies(
+    owner: httpx.AsyncClient,
+) -> None:
+    created = await create_agent(owner)
+    assert created["scope"] == "org"
+    got = (await owner.get(f"{BASE}/{created['id']}")).json()
+    assert got["scope"] == "org"
+    assert got["policies"] == {"read": [], "manage": []}
+    assert "visibility" not in got and "policy_id" not in got
+
+
+async def test_v2_patch_null_scope_is_422(owner: httpx.AsyncClient) -> None:
+    created = await create_agent(owner)
+    r = await owner.patch(f"{BASE}/{created['id']}", json={"scope": None})
+    assert r.status_code == 422

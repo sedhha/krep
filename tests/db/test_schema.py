@@ -57,15 +57,13 @@ async def insert_registry(
         "name": "My agent",
         "description": "",
         "tags": [],
-        "visibility": "private",
-        "policy_id": None,
         **overrides,
     }
     await conn.execute(
         "INSERT INTO registry (tenant_id, type, slug, name, description, tags, "
-        "visibility, policy_id, created_by, updated_by) "
+        "created_by, updated_by) "
         "VALUES (%(tenant)s, %(type)s, %(slug)s, %(name)s, %(description)s, %(tags)s, "
-        "%(visibility)s, %(policy_id)s, 'u', 'u')",
+        "'u', 'u')",
         {"tenant": TENANT, "type": type, **values},
     )
 
@@ -91,21 +89,6 @@ async def test_extensions_present(owner_conn: AsyncConnection) -> None:
     assert {r[0] for r in await cur.fetchall()} == {"pg_trgm", "pgcrypto"}
 
 
-async def test_restricted_visibility_requires_policy(
-    owner_conn: AsyncConnection,
-) -> None:
-    await scope_tenant(owner_conn)
-    with pytest.raises(psycopg.errors.CheckViolation):
-        await insert_registry(owner_conn, visibility="restricted", policy_id=None)
-
-
-async def test_private_visibility_without_policy_is_allowed(
-    owner_conn: AsyncConnection,
-) -> None:
-    await scope_tenant(owner_conn)
-    await insert_registry(owner_conn)
-
-
 @pytest.mark.parametrize(
     "overrides",
     [
@@ -117,7 +100,6 @@ async def test_private_visibility_without_policy_is_allowed(
         {"name": "n" * 121},
         {"description": "d" * 2001},
         {"tags": [f"t{i}" for i in range(21)]},
-        {"visibility": "public"},
     ],
 )
 async def test_registry_checks_fire(

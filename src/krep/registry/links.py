@@ -126,7 +126,7 @@ async def create_link(
         )
     origin = await _readable(conn, caller, resource_id)
     other = await _readable(conn, caller, other_id)
-    if not await can_edit(caller, origin):
+    if not await can_edit(conn, caller, origin):
         raise ApiError(
             403, "forbidden", "only the owner or an admin can link from this resource"
         )
@@ -167,7 +167,7 @@ async def create_link(
     await advisory_lock(conn, _graph_lock_key(caller.tenant_id))
     await _ensure_no_cycle(conn, source["id"], target["id"])
     accept_side = source if rule["accept_by"] == "source" else target
-    status = "accepted" if await can_edit(caller, accept_side) else "pending"
+    status = "accepted" if await can_edit(conn, caller, accept_side) else "pending"
     try:
         async with conn.transaction(), conn.cursor(row_factory=dict_row) as cur:
             await cur.execute(
@@ -205,7 +205,7 @@ async def _decidable(conn: AsyncConnection, caller: Caller, link: Row) -> Row:
         raise ApiError(404, "not_found", "link not found")
     rule = await _rule(conn, source["type"], target["type"], link["relation"])
     accept_side = source if rule is None or rule["accept_by"] == "source" else target
-    if await can_edit(caller, accept_side):
+    if await can_edit(conn, caller, accept_side):
         return {"source": source, "target": target}
     if await can_read(conn, caller, source) or await can_read(conn, caller, target):
         raise ApiError(
@@ -253,7 +253,7 @@ async def delete_link(conn: AsyncConnection, caller: Caller, link_id: UUID) -> N
     source = await fetch_row(conn, link["source_id"])
     target = await fetch_row(conn, link["target_id"])
     sides = [row for row in (source, target) if row is not None]
-    if any([await can_edit(caller, row) for row in sides]):
+    if any([await can_edit(conn, caller, row) for row in sides]):
         await conn.execute("DELETE FROM registry_links WHERE id = %s", (link_id,))
         return
     if any([await can_read(conn, caller, row) for row in sides]):
@@ -277,7 +277,7 @@ async def list_links(
         raise validation_failed(
             [FieldError("status", "must be pending, accepted or rejected")]
         )
-    editable = await can_edit(caller, resource)
+    editable = await can_edit(conn, caller, resource)
     async with conn.cursor(row_factory=dict_row) as cur:
         await cur.execute(
             f"SELECT {LINK_COLUMNS}, "

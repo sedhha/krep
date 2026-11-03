@@ -7,17 +7,26 @@ from psycopg.types.json import Jsonb
 
 from krep.api.errors import ApiError
 from krep.identity.resolve import Caller
-from krep.policy.evaluate import evaluate
 from krep.registry.limits import get_limit
+from krep.registry.policies import (
+    list_policies,
+    replace_policies,
+    validate_policy_map,
+)
 from krep.registry.skill_archive import SkillArchive, validate_skill_archive
-from krep.registry.specs import FieldError, validate_resource_fields, validate_spec
+from krep.registry.specs import (
+    SCOPES,
+    FieldError,
+    validate_resource_fields,
+    validate_spec,
+)
 from krep.registry.subtypes import insert_generic_spec
 
 COLUMNS = (
-    "id, tenant_id, type, slug, name, description, tags, visibility, policy_id, status, "
+    "id, tenant_id, type, slug, name, description, tags, scope, product_id, status, "
     "current_version_id, next_version, meta, created_at, created_by, updated_at, updated_by"
 )
-PATCHABLE = ("name", "description", "tags", "visibility", "policy_id", "meta")
+PATCHABLE = ("name", "description", "tags", "meta")
 SKILL = "skill"
 AGENT = "agent"
 DEFAULT_LIST_LIMIT = 50
@@ -50,44 +59,70 @@ async def fetch_row(
 
 
 async def lock_resource(conn: AsyncConnection, resource_id: UUID) -> Row:
-    row = await fetch_row(conn, resource_id, lock=True)
+    row = await fetch_row(conn, resource_id, lock=True) or await fetch_row(
+        conn, resource_id
+    )
     if row is None:
         raise not_found()
     return row
 
 
-async def can_edit(caller: Caller, row: Row) -> bool:
-    return caller.can_admin or (
-        caller.can_write and row["created_by"] == caller.user_id
-    )
-
-
-async def _policy_satisfied(
-    conn: AsyncConnection, caller: Caller, policy_id: UUID | None
-) -> bool:
-    if policy_id is None:
-        return False
-    cur = await conn.execute(
-        "SELECT compiled_path::text FROM access_policies WHERE id = %s", (policy_id,)
-    )
+async def platform_admin_on(conn: AsyncConnection) -> bool:
+    cur = await conn.execute("SELECT current_setting('app.platform_admin', true)")
     row = await cur.fetchone()
-    return row is not None and await evaluate(
-        conn, row[0], caller.doc, caller.tenant_id
+    return bool(row and row[0] == "on")
+
+
+async def _satisfies(
+    conn: AsyncConnection, caller: Caller, resource_id: UUID, action: str
+) -> bool:
+    cur = await conn.execute(
+        "SELECT p.kind = 'open' OR coalesce(jsonb_path_match(%s, p.compiled_path, %s, true), false) "
+        "FROM registry_policies rp JOIN access_policies p ON p.id = rp.policy_id "
+        "WHERE rp.registry_id = %s AND rp.action = %s",
+        (
+            Jsonb(caller.doc),
+            Jsonb(
+                {
+                    "tenant_id": str(caller.tenant_id),
+                    "product_id": str(caller.product_id) if caller.product_id else None,
+                }
+            ),
+            resource_id,
+            action,
+        ),
+    )
+    return any([bool(r[0]) for r in await cur.fetchall()])
+
+
+async def can_edit(conn: AsyncConnection, caller: Caller, row: Row) -> bool:
+    if row["tenant_id"] != caller.tenant_id:
+        return False
+    if caller.can_admin:
+        return True
+    if not caller.can_write:
+        return False
+    return row["created_by"] == caller.user_id or await _satisfies(
+        conn, caller, row["id"], "manage"
     )
 
 
-async def _discoverable(conn: AsyncConnection, caller: Caller, row: Row) -> bool:
-    if row["visibility"] == "private":
-        return row["created_by"] == caller.user_id
-    if row["visibility"] == "tenant":
-        return True
-    return await _policy_satisfied(conn, caller, row["policy_id"])
+def _in_reach(caller: Caller, row: Row) -> bool:
+    if row["scope"] != "global" and row["tenant_id"] != caller.tenant_id:
+        return False
+    return row["scope"] != "product" or row["product_id"] == caller.product_id
 
 
 async def can_read(conn: AsyncConnection, caller: Caller, row: Row) -> bool:
+    if not _in_reach(caller, row):
+        return False
     if row["status"] != "published":
-        return await can_edit(caller, row)
-    return await _discoverable(conn, caller, row)
+        return await can_edit(conn, caller, row)
+    if row["tenant_id"] == caller.tenant_id and (
+        caller.can_admin or row["created_by"] == caller.user_id
+    ):
+        return True
+    return await _satisfies(conn, caller, row["id"], "read")
 
 
 async def _current_version(
@@ -103,8 +138,15 @@ async def _current_version(
         return await cur.fetchone()
 
 
+async def _product_slug(conn: AsyncConnection, product_id: UUID | None) -> str | None:
+    if product_id is None:
+        return None
+    cur = await conn.execute("SELECT slug FROM products WHERE id = %s", (product_id,))
+    row = await cur.fetchone()
+    return row[0] if row else None
+
+
 async def _view(conn: AsyncConnection, caller: Caller, row: Row) -> Row:
-    editable = await can_edit(caller, row)
     view: Row = {
         key: row[key]
         for key in (
@@ -114,7 +156,7 @@ async def _view(conn: AsyncConnection, caller: Caller, row: Row) -> Row:
             "name",
             "description",
             "tags",
-            "visibility",
+            "scope",
             "status",
             "meta",
             "created_at",
@@ -123,9 +165,10 @@ async def _view(conn: AsyncConnection, caller: Caller, row: Row) -> Row:
             "updated_by",
         )
     }
+    view["product"] = await _product_slug(conn, row["product_id"])
     view["current_version"] = await _current_version(conn, row["current_version_id"])
-    if editable:
-        view["policy_id"] = row["policy_id"]
+    if await can_edit(conn, caller, row):
+        view["policies"] = await list_policies(conn, row["id"])
     return view
 
 
@@ -142,7 +185,7 @@ async def lock_for_edit(
     conn: AsyncConnection, caller: Caller, resource_id: UUID
 ) -> Row:
     row = await lock_resource(conn, resource_id)
-    if await can_edit(caller, row):
+    if await can_edit(conn, caller, row):
         return row
     if await can_read(conn, caller, row):
         raise ApiError(
@@ -269,6 +312,40 @@ async def _known_types(conn: AsyncConnection) -> set[str]:
     return {r[0] for r in await cur.fetchall()}
 
 
+async def _resolve_scope(conn: AsyncConnection, body: Row) -> tuple[str, UUID | None]:
+    scope: str = body.get("scope", "org")
+    if scope not in SCOPES:
+        raise validation_failed(
+            [FieldError("scope", f"must be one of {', '.join(SCOPES)}")]
+        )
+    if scope == "global" and not await platform_admin_on(conn):
+        raise scope_not_allowed()
+    slug = body.get("product")
+    if scope != "product":
+        if slug is not None:
+            raise validation_failed(
+                [FieldError("product", "only product-scoped resources take a product")]
+            )
+        return scope, None
+    if slug is None:
+        raise validation_failed([FieldError("product", "required for product scope")])
+    return scope, await _product_id(conn, slug)
+
+
+async def _product_id(conn: AsyncConnection, slug: str) -> UUID:
+    cur = await conn.execute(
+        "SELECT id FROM products WHERE slug = %s AND status = 'active'", (slug,)
+    )
+    row = await cur.fetchone()
+    if row is None:
+        raise validation_failed([FieldError("product", "product does not exist")])
+    return row[0]
+
+
+def scope_not_allowed() -> ApiError:
+    return ApiError(403, "scope_not_allowed", "global scope requires a platform admin")
+
+
 async def create_resource(conn: AsyncConnection, caller: Caller, body: Row) -> Row:
     resource_type: str = body["type"]
     if resource_type not in await _known_types(conn):
@@ -282,32 +359,32 @@ async def create_resource(conn: AsyncConnection, caller: Caller, body: Row) -> R
         body["slug"],
         description,
         body.get("tags", []),
-        body.get("visibility", "private"),
-        body.get("policy_id"),
         body.get("meta", {}),
     )
+    policies: dict[str, list[UUID]] = body.get("policies") or {}
+    errors_ += validate_policy_map(policies)
     if errors_:
         raise validation_failed(errors_)
     async with conn.transaction():
+        scope, product_id = await _resolve_scope(conn, body)
         await enforce_draft_cap(conn, caller.tenant_id, resource_type)
         try:
             registry_id = await _insert_resource(
-                conn, caller, body, description, archive
+                conn, caller, body, description, archive, scope, product_id
             )
         except errors.UniqueViolation:
             raise ApiError(
                 409, "slug_taken", "slug already in use for this type"
             ) from None
-        except errors.ForeignKeyViolation:
-            raise validation_failed(
-                [FieldError("policy_id", "policy does not exist")]
-            ) from None
+        for action, ids in policies.items():
+            await replace_policies(conn, caller.tenant_id, registry_id, action, ids)
     return {
         "id": registry_id,
         "type": resource_type,
         "slug": body["slug"],
         "status": "draft",
-        "visibility": body.get("visibility", "private"),
+        "scope": scope,
+        "product": body.get("product"),
         "current_version": None,
         "version": {"version": 1, "status": "draft"},
         **({"warnings": archive.warnings} if archive else {}),
@@ -326,10 +403,12 @@ async def _insert_resource(
     body: Row,
     description: str,
     archive: SkillArchive | None,
+    scope: str,
+    product_id: UUID | None,
 ) -> UUID:
     cur = await conn.execute(
-        "INSERT INTO registry (tenant_id, type, slug, name, description, tags, visibility, "
-        "policy_id, next_version, meta, created_by, updated_by) "
+        "INSERT INTO registry (tenant_id, type, slug, name, description, tags, scope, "
+        "product_id, next_version, meta, created_by, updated_by) "
         "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, 2, %s, %s, %s) RETURNING id",
         (
             caller.tenant_id,
@@ -338,8 +417,8 @@ async def _insert_resource(
             body["name"],
             description,
             body.get("tags", []),
-            body.get("visibility", "private"),
-            body.get("policy_id"),
+            scope,
+            product_id,
             Jsonb(body.get("meta", {})),
             caller.user_id,
             caller.user_id,
@@ -372,21 +451,30 @@ async def list_resources(
     *,
     type: str | None,
     status: str | None,
+    scope: str | None = None,
+    product: str | None = None,
     limit: int = DEFAULT_LIST_LIMIT,
     offset: int = 0,
 ) -> list[Row]:
     async with conn.cursor(row_factory=dict_row) as cur:
         await cur.execute(
-            "SELECT r.id, r.type, r.slug, r.name, r.description, r.tags, r.visibility, "
-            "r.status, r.created_by, r.updated_at, v.version AS current_version "
+            "SELECT r.id, r.type, r.slug, r.name, r.description, r.tags, r.scope, "
+            "pr.slug AS product, r.status, r.created_by, r.updated_at, "
+            "v.version AS current_version "
             "FROM registry r LEFT JOIN registry_versions v ON v.id = r.current_version_id "
-            "WHERE (%(admin)s OR r.created_by = %(user)s) "
+            "LEFT JOIN products pr ON pr.id = r.product_id "
+            "WHERE r.tenant_id = %(tenant)s AND (%(admin)s OR r.created_by = %(user)s) "
+            "AND (%(scope)s::text IS NULL OR r.scope = %(scope)s) "
+            "AND (%(product)s::text IS NULL OR pr.slug = %(product)s) "
             "AND (%(type)s::text IS NULL OR r.type = %(type)s) "
             "AND (%(status)s::text IS NULL OR r.status = %(status)s) "
             "ORDER BY r.created_at DESC, r.id LIMIT %(limit)s OFFSET %(offset)s",
             {
+                "tenant": caller.tenant_id,
                 "admin": caller.can_admin,
                 "user": caller.user_id,
+                "scope": scope,
+                "product": product,
                 "type": type,
                 "status": status,
                 "limit": limit,
@@ -394,6 +482,63 @@ async def list_resources(
             },
         )
         return await cur.fetchall()
+
+
+async def foreign_referrers(conn: AsyncConnection, resource_id: UUID) -> list[Row]:
+    return []
+
+
+async def _scope_change(
+    conn: AsyncConnection, row: Row, changes: Row
+) -> tuple[str, UUID | None] | None:
+    if "scope" not in changes and "product" not in changes:
+        return None
+    scope: str = changes.get("scope", row["scope"])
+    if scope not in SCOPES:
+        raise validation_failed(
+            [FieldError("scope", f"must be one of {', '.join(SCOPES)}")]
+        )
+    slug = changes.get("product")
+    if scope == "product":
+        if slug is None and "scope" in changes and row["scope"] != "product":
+            raise validation_failed(
+                [FieldError("product", "required for product scope")]
+            )
+        product_id = await _product_id(conn, slug) if slug else row["product_id"]
+    else:
+        if slug is not None:
+            raise validation_failed(
+                [FieldError("product", "only product-scoped resources take a product")]
+            )
+        product_id = None
+    if scope == row["scope"] and product_id == row["product_id"]:
+        return None
+    return scope, product_id
+
+
+async def _authorise_scope_change(
+    conn: AsyncConnection, caller: Caller, row: Row, scope: str
+) -> None:
+    platform = await platform_admin_on(conn)
+    if scope == "global":
+        if not platform:
+            raise scope_not_allowed()
+        if row["status"] != "published":
+            raise ApiError(
+                409, "invalid_state", "only published resources can become global"
+            )
+    elif row["scope"] == "global":
+        if not (platform or caller.can_admin):
+            raise ApiError(
+                403, "forbidden", "only an org admin can demote a global resource"
+            )
+        if referrers := await foreign_referrers(conn, row["id"]):
+            raise ApiError(
+                409,
+                "resource_in_use",
+                "resource is used by other organisations",
+                referrers=referrers,
+            )
 
 
 async def update_resource(
@@ -406,33 +551,42 @@ async def update_resource(
         merged["slug"],
         merged["description"],
         merged["tags"],
-        merged["visibility"],
-        merged["policy_id"],
         merged["meta"],
     )
+    policies: dict[str, list[UUID]] = changes.get("policies") or {}
+    if "policies" in changes:
+        problems += validate_policy_map(policies)
     if problems:
         raise validation_failed(problems)
-    assignments = sql.SQL(", ").join(
-        [
-            sql.SQL("{} = {}").format(sql.Identifier(key), sql.Placeholder(key))
-            for key in PATCHABLE
-            if key in changes
-        ]
-        + [sql.SQL("updated_by = %(by)s, updated_at = now()")]
-    )
+    assignments = [
+        sql.SQL("{} = {}").format(sql.Identifier(key), sql.Placeholder(key))
+        for key in PATCHABLE
+        if key in changes
+    ]
     params: Row = {
         k: Jsonb(v) if k == "meta" else v for k, v in changes.items() if k in PATCHABLE
     }
-    try:
-        async with conn.transaction():
+    async with conn.transaction():
+        if moved := await _scope_change(conn, row, changes):
+            await _authorise_scope_change(conn, caller, row, moved[0])
+            assignments += [sql.SQL("scope = %(scope)s, product_id = %(product_id)s")]
+            params |= {"scope": moved[0], "product_id": moved[1]}
+        try:
             await conn.execute(
-                sql.SQL("UPDATE registry SET {} WHERE id = %(id)s").format(assignments),
+                sql.SQL("UPDATE registry SET {} WHERE id = %(id)s").format(
+                    sql.SQL(", ").join(
+                        assignments
+                        + [sql.SQL("updated_by = %(by)s, updated_at = now()")]
+                    )
+                ),
                 {**params, "by": caller.user_id, "id": resource_id},
             )
-    except errors.ForeignKeyViolation:
-        raise validation_failed(
-            [FieldError("policy_id", "policy does not exist")]
-        ) from None
+        except errors.UniqueViolation:
+            raise ApiError(
+                409, "slug_taken", "slug already in use for this type"
+            ) from None
+        for action, ids in policies.items():
+            await replace_policies(conn, row["tenant_id"], resource_id, action, ids)
     updated = await lock_resource(conn, resource_id)
     return await _view(conn, caller, updated)
 

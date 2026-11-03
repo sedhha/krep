@@ -38,8 +38,6 @@ VALID_FIELDS: dict[str, Any] = {
     "slug": "refund-assistant",
     "description": "Handles refund requests.",
     "tags": ["billing", "refunds"],
-    "visibility": "tenant",
-    "policy_id": None,
     "meta": {"owner_team": "billing-eng"},
 }
 
@@ -186,25 +184,6 @@ def test_tags_limit_is_twenty() -> None:
 def test_tag_rule_names_the_offending_index(tag: str, ok: bool) -> None:
     errors = field_errors(tags=["fine", tag])
     assert ("tags[1]" not in errors) is ok
-
-
-@pytest.mark.parametrize("visibility", ["private", "tenant"])
-def test_visibility_without_policy(visibility: str) -> None:
-    assert field_errors(visibility=visibility) == {}
-
-
-def test_unknown_visibility_fails() -> None:
-    assert "visibility" in field_errors(visibility="public")
-
-
-def test_restricted_requires_policy_id() -> None:
-    assert "policy_id" in field_errors(visibility="restricted", policy_id=None)
-    assert (
-        field_errors(
-            visibility="restricted", policy_id="7b0d6f3e-0000-4000-8000-000000000000"
-        )
-        == {}
-    )
 
 
 def test_meta_must_be_object() -> None:

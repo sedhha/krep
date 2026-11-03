@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from psycopg import AsyncConnection
 
 from tests.conftest import role_url
-from tests.e2e.conftest import make_user
+from tests.e2e.conftest import make_user, open_policy_id
 from tests.identity.conftest import Keys
 
 TOKEN_CLAUSE = (
@@ -43,6 +43,7 @@ async def test_walkthrough_steps_0_to_11(
     tenant: uuid.UUID,
     migrated_db: str,
 ) -> None:
+    open_id = await open_policy_id(migrated_db, tenant)
     admin = make_user(app, keys, onboarded, "admin", groups=["grc-admins"])
     ravi = make_user(app, keys, onboarded, "ravi", groups=["grc-editors"])
     priya = make_user(app, keys, onboarded, "priya", groups=["grc-editors"])
@@ -89,7 +90,7 @@ async def test_walkthrough_steps_0_to_11(
                         "type": "skill",
                         "slug": "refund-policy",
                         "name": "Refund Policy",
-                        "visibility": "tenant",
+                        "policies": {"read": [open_id]},
                     }
                 )
             },
@@ -115,7 +116,7 @@ async def test_walkthrough_steps_0_to_11(
 
         r = await ravi.patch(
             f"/v1/registry/{a1}",
-            json={"visibility": "restricted", "policy_id": p1["id"]},
+            json={"policies": {"read": [p1["id"]]}},
         )
         assert r.status_code == 200, r.text
 
