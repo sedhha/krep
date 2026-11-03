@@ -6,7 +6,7 @@ from psycopg.rows import dict_row
 
 from krep.api.errors import ApiError
 from krep.registry.limits import get_limit
-from krep.registry.resources import Row, release_skill_files
+from krep.registry.resources import Row, foreign_version_referrers, release_skill_files
 
 Referrer = dict[str, Any]
 
@@ -51,7 +51,7 @@ async def version_in_use(conn: AsyncConnection, version_id: UUID) -> list[Referr
             }
             for row in await cur.fetchall()
         )
-    return referrers
+    return referrers + await foreign_version_referrers(conn, version_id)
 
 
 async def delete_version_rows(

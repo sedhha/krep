@@ -1,5 +1,5 @@
 from collections.abc import AsyncGenerator
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request, Response
@@ -11,8 +11,11 @@ from krep.api.groups import Groups
 from krep.api.policies import rule_ast
 from krep.auth.adapters import list_adapters
 from krep.config import get_settings
+from krep.db.tenant import tenant_transaction
 from krep.identity.login import PanelIdentity, authenticate_panel
+from krep.identity.resolve import Caller
 from krep.org import audit, service
+from krep.registry.scope import set_scope
 
 router = APIRouter(prefix="/v1/admin")
 
@@ -35,6 +38,12 @@ class OrganizationIn(BaseModel):
 
 class MembershipIn(BaseModel):
     groups: Groups = Field(default_factory=list)
+
+
+class ScopeIn(BaseModel):
+    organization_id: UUID
+    scope: Literal["org", "product", "global"]
+    product: str | None = None
 
 
 class DisableIn(BaseModel):
@@ -209,3 +218,20 @@ async def audit_log(
     return {
         "items": [dict(zip(keys, row, strict=True)) for row in await cur.fetchall()]
     }
+
+
+@router.put("/registry/{resource_id}/scope")
+async def set_registry_scope(
+    resource_id: UUID, actor: Actor, request: Request, body: ScopeIn
+) -> dict[str, Any]:
+    async with tenant_transaction(request.app.state.pool, body.organization_id) as conn:
+        await conn.execute("SELECT set_config('app.platform_admin', 'on', true)")
+        caller = Caller(
+            body.organization_id,
+            actor.user_id,
+            {"token": {}, "principal": {}},
+            True,
+            True,
+            is_platform_admin=True,
+        )
+        return await set_scope(conn, caller, resource_id, body.scope, body.product)

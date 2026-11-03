@@ -13,6 +13,7 @@ from krep.registry.resources import (
     can_read,
     fetch_row,
     not_found,
+    scope_lock_key,
     validation_failed,
 )
 from krep.registry.specs import FieldError
@@ -69,6 +70,32 @@ async def _rule(
             (source_type, target_type, relation),
         )
         return await cur.fetchone()
+
+
+async def _lock_foreign_target(conn: AsyncConnection, resource_id: UUID) -> None:
+    await advisory_lock(conn, scope_lock_key(resource_id))
+    row = await fetch_row(conn, resource_id)
+    if row is None or row["scope"] != "global":
+        raise not_found()
+
+
+async def _check_scope_pair(conn: AsyncConnection, source: Row, target: Row) -> None:
+    cur = await conn.execute(
+        "SELECT allowed FROM link_scope_rules WHERE source_scope = %s AND target_scope = %s",
+        (source["scope"], target["scope"]),
+    )
+    rule = await cur.fetchone()
+    same_product = (
+        source["scope"] != "product"
+        or target["scope"] != "product"
+        or source["product_id"] == target["product_id"]
+    )
+    if rule is None or not rule[0] or not same_product:
+        raise ApiError(
+            422,
+            "link_scope_not_allowed",
+            f"{source['scope']} -> {target['scope']} links are not allowed",
+        )
 
 
 async def _ensure_no_cycle(
@@ -133,6 +160,13 @@ async def create_link(
     if "archived" in (origin["status"], other["status"]):
         raise ApiError(409, "resource_archived", "archived resources cannot be linked")
     source, target = (origin, other) if direction == "out" else (other, origin)
+    if source["tenant_id"] != caller.tenant_id:
+        raise ApiError(
+            403, "forbidden", "links can only start from your own organisation"
+        )
+    if target["tenant_id"] != caller.tenant_id:
+        await _lock_foreign_target(conn, target["id"])
+    await _check_scope_pair(conn, source, target)
     rule = await _rule(conn, source["type"], target["type"], relation)
     if rule is None:
         raise ApiError(

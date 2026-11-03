@@ -7,6 +7,7 @@ from psycopg.types.json import Jsonb
 
 from krep.api.errors import ApiError
 from krep.identity.resolve import Caller
+from krep.org import audit
 from krep.registry.limits import get_limit
 from krep.registry.policies import (
     list_policies,
@@ -484,8 +485,31 @@ async def list_resources(
         return await cur.fetchall()
 
 
+async def _foreign_referrers(
+    conn: AsyncConnection, resource_id: UUID | None, version_id: UUID | None
+) -> list[Row]:
+    cur = await conn.execute(
+        "SELECT organization, kind, referrers FROM foreign_referrers(%s, %s)",
+        (resource_id, version_id),
+    )
+    rows = await cur.fetchall()
+    if rows and rows[0][0] is None:
+        return [{"count": sum(r[2] for r in rows)}]
+    return [{"organization": o, "kind": k, "count": n} for o, k, n in rows]
+
+
+def scope_lock_key(resource_id: UUID) -> str:
+    return f"scope:{resource_id}"
+
+
 async def foreign_referrers(conn: AsyncConnection, resource_id: UUID) -> list[Row]:
-    return []
+    return await _foreign_referrers(conn, resource_id, None)
+
+
+async def foreign_version_referrers(
+    conn: AsyncConnection, version_id: UUID
+) -> list[Row]:
+    return await _foreign_referrers(conn, None, version_id)
 
 
 async def _scope_change(
@@ -532,6 +556,7 @@ async def _authorise_scope_change(
             raise ApiError(
                 403, "forbidden", "only an org admin can demote a global resource"
             )
+        await advisory_lock(conn, scope_lock_key(row["id"]))
         if referrers := await foreign_referrers(conn, row["id"]):
             raise ApiError(
                 409,
@@ -571,6 +596,15 @@ async def update_resource(
             await _authorise_scope_change(conn, caller, row, moved[0])
             assignments += [sql.SQL("scope = %(scope)s, product_id = %(product_id)s")]
             params |= {"scope": moved[0], "product_id": moved[1]}
+            if moved[0] == "global":
+                await audit.record(
+                    conn,
+                    caller.user_id,
+                    "registry.scope.global",
+                    row["tenant_id"],
+                    str(resource_id),
+                    {"from": row["scope"]},
+                )
         try:
             await conn.execute(
                 sql.SQL("UPDATE registry SET {} WHERE id = %(id)s").format(
@@ -635,8 +669,10 @@ async def _referrers(conn: AsyncConnection, resource_id: UUID) -> list[Row]:
 async def delete_resource(
     conn: AsyncConnection, caller: Caller, resource_id: UUID
 ) -> None:
-    await lock_for_edit(conn, caller, resource_id)
+    row = await lock_for_edit(conn, caller, resource_id)
     referrers = await _referrers(conn, resource_id)
+    if row["scope"] == "global":
+        referrers += await foreign_referrers(conn, resource_id)
     if referrers:
         raise ApiError(
             409,
