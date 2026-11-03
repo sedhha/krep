@@ -4,7 +4,7 @@ Spec: 4.3, 4.5, 6, 6.1, 9.2 (`PUT /admin/registry/{id}/scope`), 9.4. Acceptance:
 
 ## Files
 - Create: `src/krep/registry/scope.py`, `tests/registry/test_cross_tenant_links.py`, `test_global_approval.py`, `tests/api/test_scope_api.py`
-- Modify: `src/krep/registry/links.py`, `prune.py`, `publish.py`, `bundle.py`, `resources.py`, `src/krep/api/registry.py`, `src/krep/api/links.py`, `src/krep/api/admin.py`, `migrations/versions/0011_referrer_function.py` (`SECURITY DEFINER` function returning cross-tenant referrer counts and, for platform callers, organisation slugs)
+- Modify: `src/krep/registry/links.py`, `prune.py`, `publish.py`, `bundle.py`, `resources.py`, `src/krep/api/registry.py`, `src/krep/api/links.py`, `src/krep/api/admin.py`, `migrations/versions/0012_referrer_function.py` (`SECURITY DEFINER` function returning cross-tenant referrer counts and, for platform callers, organisation slugs)
 
 ## Consumes
 V2-02 scope and policy slots; V2-04 platform identity; V2-05 audit; V1 links, prune (`version_in_use`), bundle.

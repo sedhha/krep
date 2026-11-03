@@ -12,7 +12,7 @@ from psycopg import AsyncConnection
 
 from krep.api import create_app
 from krep.cli import main
-from krep.config import Settings
+from krep.config import Settings, get_settings
 from krep.db.pool import open_pool
 from krep.identity import jwt as krep_jwt
 from tests.conftest import role_url
@@ -40,10 +40,20 @@ async def app(
     settings = Settings(
         database_url=role_url("krep_app", migrated_db), migration_database_url=""
     )
+    monkeypatch.setenv("KREP_PLATFORM_ADMIN_KEY", "e2e-platform-key-" + "k" * 32)
+    get_settings.cache_clear()
+    platform_settings = Settings(
+        database_url=role_url("krep_platform", migrated_db), migration_database_url=""
+    )
     application = create_app()
-    async with await open_pool(settings, min_size=1, max_size=4) as pool:
+    async with (
+        await open_pool(settings, min_size=1, max_size=4) as pool,
+        await open_pool(platform_settings, min_size=1, max_size=2) as platform_pool,
+    ):
         application.state.pool = pool
+        application.state.platform_pool = platform_pool
         yield application
+    get_settings.cache_clear()
 
 
 @pytest.fixture

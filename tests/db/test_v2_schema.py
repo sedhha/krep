@@ -130,7 +130,7 @@ async def test_v2ac8_role_privileges(migrated_db: str, role: str):
                 "INSERT INTO admin_audit_log (actor,action) VALUES ('u','test')",
             ),
         ]:
-            if role == "krep_app":
+            if role == "krep_app" and table != "admin_audit_log":
                 with pytest.raises(psycopg.errors.InsufficientPrivilege):
                     async with conn.transaction():
                         await conn.execute(statement)
@@ -138,6 +138,15 @@ async def test_v2ac8_role_privileges(migrated_db: str, role: str):
                 await conn.execute(statement)
             if table != "admin_audit_log":
                 await conn.execute(f"SELECT * FROM {table}")
+        if role == "krep_app":
+            for statement in (
+                "SELECT * FROM admin_audit_log",
+                "UPDATE admin_audit_log SET actor = 'x'",
+                "DELETE FROM admin_audit_log",
+            ):
+                with pytest.raises(psycopg.errors.InsufficientPrivilege):
+                    async with conn.transaction():
+                        await conn.execute(statement)
         if role == "krep_platform":
             with pytest.raises(psycopg.errors.InsufficientPrivilege):
                 async with conn.transaction():

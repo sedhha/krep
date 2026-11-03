@@ -71,7 +71,7 @@ class PreviewIn(RuleIn, SampleIn):
     pass
 
 
-def _rule_ast(source: str | None, ast: dict[str, Any] | None) -> dict[str, Any]:
+def rule_ast(source: str | None, ast: dict[str, Any] | None) -> dict[str, Any]:
     try:
         if source is not None:
             return parse(source)
@@ -172,7 +172,7 @@ async def _max_policies(conn: AsyncConnection, tenant_id: UUID) -> int:
 
 @router.post("", status_code=201)
 async def create_policy(caller: Admin, conn: Conn, body: PolicyIn) -> dict[str, Any]:
-    ast = _rule_ast(body.source, body.ast)
+    ast = rule_ast(body.source, body.ast)
     if body.name in RESERVED_NAMES:
         raise _reserved()
     cur = await conn.execute(
@@ -233,7 +233,7 @@ async def list_policies(caller: Admin, conn: Conn) -> dict[str, Any]:
 
 @router.post("/preview")
 async def preview_policy(caller: Admin, body: PreviewIn) -> dict[str, Any]:
-    ast = _rule_ast(body.source, body.ast)
+    ast = rule_ast(body.source, body.ast)
     sampled = body.token is not None or body.principal is not None
     return {
         "ast": ast,
@@ -257,7 +257,7 @@ async def replace_policy(
     name, reserved, rev = await _lock(conn, caller.tenant_id, policy_id)
     if body.rev != rev:
         raise ApiError(409, "rev_conflict", "policy was modified", current_rev=rev)
-    ast = _rule_ast(body.source, body.ast)
+    ast = rule_ast(body.source, body.ast)
     if body.name != name:
         if reserved or body.name in RESERVED_NAMES:
             raise _reserved()
@@ -358,7 +358,7 @@ async def restore_policy(
     old = await cur.fetchone()
     if old is None:
         raise ApiError(404, "not_found", "revision not found")
-    ast = _rule_ast(None, old[0])
+    ast = rule_ast(None, old[0])
     row = await write_policy(conn, caller.tenant_id, name, ast, caller.user_id)
     return _view(row, await _usage_count(conn, policy_id), warnings=[])
 

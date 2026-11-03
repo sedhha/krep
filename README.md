@@ -12,6 +12,7 @@ Python 3.13, `uv`, Docker (PostgreSQL 17).
 | --- | --- |
 | `KREP_DATABASE_URL` | Postgres URL for role `krep_app` (the API and benchmark) |
 | `KREP_MIGRATION_DATABASE_URL` | Postgres URL for role `krep_owner` (Alembic and the `krep` CLI) |
+| `KREP_PLATFORM_DATABASE_URL` | Postgres URL for role `krep_platform`; enables `/v1/admin/*` and the audit log; unset closes the platform routes |
 | `KREP_ENCRYPTION_KEYS` | Comma list of `<key_id>:<urlsafe-base64-32-bytes>` Fernet keys for organisation secrets; first key encrypts, all decrypt; generate one with `krep keys generate` |
 | `KREP_PLATFORM_ADMIN_KEY` | Key (at least 32 characters) accepted in `X-Platform-Key` as platform admin; unset or shorter disables key auth |
 | `KREP_LOGIN_ISSUER` | `iss` of panel login JWTs; a JWT with this issuer is only verified against the login JWKS |

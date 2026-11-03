@@ -10,7 +10,7 @@ Drop 1 (V2-01 to V2-07) is the backend, testable with a stub login issuer and a 
 | V2-02 | [Policy-only access, scope and global read](V2-02-policy-only-access.md) | done | 04d83aa |
 | V2-03 | [Secret crypto and organisation auth adapters](V2-03-crypto-auth-adapters.md) | done | ef46c71 |
 | V2-04 | [Identity: selector mode, login JWT, platform admin](V2-04-identity.md) | done | 5ecdd68 |
-| V2-05 | [Platform and organisation routes, audit](V2-05-admin-routes.md) | todo | |
+| V2-05 | [Platform and organisation routes, audit](V2-05-admin-routes.md) | in-review | |
 | V2-06 | [Resource API scope, cross-tenant links, global approval](V2-06-resource-links.md) | todo | |
 | V2-07 | [Organisation lifecycle and purge](V2-07-lifecycle.md) | todo | |
 | V2-08 | [Next.js app, Better Auth, BFF proxy](V2-08-next-app-better-auth.md) | todo | |
@@ -21,4 +21,4 @@ Drop 1 (V2-01 to V2-07) is the backend, testable with a stub login issuer and a 
 
 ## Notes
 
-- Revision numbers: V2-01 adds `0005`-`0009`; V2-02 `0010` (drops `visibility` and `policy_id`); V2-06 `0011` (referrer function); V2-07 `0012` (purge function).
+- Revision numbers: V2-01 adds `0005`-`0009`; V2-02 `0010` (drops `visibility` and `policy_id`); V2-05 `0011` (platform role grants on tenant tables, needed for atomic organisation creation); V2-06 `0012` (referrer function); V2-07 `0013` (purge function).

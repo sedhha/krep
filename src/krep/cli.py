@@ -9,6 +9,7 @@ from uuid import UUID
 from cryptography.fernet import Fernet
 from psycopg import AsyncConnection
 
+from krep.org.service import init_capabilities
 from krep.policy.ast import PolicyError, PolicyInvalid, PolicyParseError, PolicyTooLarge
 from krep.policy.compile import COMPILER_VERSION, compile_ast
 from krep.policy.parser import parse
@@ -78,14 +79,7 @@ async def _tenant_init(
 ) -> None:
     rules = {"registry-admins": parse(admin), "registry-writers": parse(writer)}
     async with conn.transaction():
-        await _scope(conn, tenant_id)
-        for name, ast in rules.items():
-            cur = await conn.execute(
-                "SELECT 1 FROM access_policies WHERE tenant_id = %s AND name = %s",
-                (tenant_id, name),
-            )
-            if await cur.fetchone() is None:
-                await write_policy(conn, tenant_id, name, ast, CLI_USER, reserved=True)
+        await init_capabilities(conn, tenant_id, rules, CLI_USER)
 
 
 async def _policy_reset(

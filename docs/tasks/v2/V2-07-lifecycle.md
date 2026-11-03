@@ -3,7 +3,7 @@
 Spec: 7, 8 (`organizations` lifecycle columns), 9.2 (lifecycle routes). Acceptance: 16.
 
 ## Files
-- Create: `migrations/versions/0012_purge_function.py` (`purge_organization(uuid)` run as owner, purge-only session flag honoured by the immutability trigger), `src/krep/org/lifecycle.py`, `src/krep/jobs.py`, `tests/org/test_lifecycle.py`, `tests/org/test_purge.py`
+- Create: `migrations/versions/0013_purge_function.py` (`purge_organization(uuid)` run as owner, purge-only session flag honoured by the immutability trigger), `src/krep/org/lifecycle.py`, `src/krep/jobs.py`, `tests/org/test_lifecycle.py`, `tests/org/test_purge.py`
 - Modify: `src/krep/api/admin.py` (suspend, activate, schedule-delete, cancel-delete, legal-hold), `src/krep/cli.py` (`krep jobs purge-due`), `src/krep/config.py` (`KREP_ORG_DELETE_GRACE_DAYS`), `.env.example`, `README.md`
 
 ## Consumes

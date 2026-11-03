@@ -3,7 +3,8 @@
 Spec: 3.5, 3.6, 9.2, 9.3, 8 (audit table). Acceptance: 6, 7, 8 (runtime), 5 (API level).
 
 ## Files
-- Create: `src/krep/api/admin.py` (platform routes), `src/krep/api/org.py` (organisation routes), `src/krep/org/service.py` (create organisation, products, members, capabilities), `src/krep/org/audit.py`, `tests/api/test_admin_routes.py`, `test_org_routes.py`, `tests/org/test_service.py`
+- Create: `src/krep/api/admin.py` (platform routes), `src/krep/api/org.py` (organisation routes), `src/krep/org/service.py` (create organisation, products, members, capabilities), `src/krep/org/audit.py`, `tests/org/conftest.py`, `tests/org/test_admin_routes.py`, `tests/org/test_org_routes.py`, `tests/org/test_service.py`
+- Create: `migrations/versions/0011_platform_grants.py` (grants `krep_platform` write access to `access_policies`, `access_policy_history`, `memberships`, `auth_configs` and read access to `resource_limits`, `auth_users`, `registry`, `registry_policies` (the global-read policies on `access_policies` subquery them), so organisation creation is one transaction; also insert-only on `admin_audit_log` for `krep_app` so organisation writes are audited in the same transaction)
 - Modify: `src/krep/api/main.py` (mount routers; admin router absent when no platform identity is configured), `src/krep/db/pool.py` (second pool for `krep_platform`), `src/krep/config.py` (`KREP_PLATFORM_DATABASE_URL`), `src/krep/cli.py` (`tenant init` delegates to the same service), `.env.example`, `README.md`
 
 ## Consumes
