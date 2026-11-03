@@ -10,7 +10,7 @@ Drop 1 (V2-01 to V2-07) is the backend, testable with a stub login issuer and a 
 | V2-02 | [Policy-only access, scope and global read](V2-02-policy-only-access.md) | done | 04d83aa |
 | V2-03 | [Secret crypto and organisation auth adapters](V2-03-crypto-auth-adapters.md) | done | ef46c71 |
 | V2-04 | [Identity: selector mode, login JWT, platform admin](V2-04-identity.md) | done | 5ecdd68 |
-| V2-05 | [Platform and organisation routes, audit](V2-05-admin-routes.md) | in-review | |
+| V2-05 | [Platform and organisation routes, audit](V2-05-admin-routes.md) | done | cbee858 |
 | V2-06 | [Resource API scope, cross-tenant links, global approval](V2-06-resource-links.md) | todo | |
 | V2-07 | [Organisation lifecycle and purge](V2-07-lifecycle.md) | todo | |
 | V2-08 | [Next.js app, Better Auth, BFF proxy](V2-08-next-app-better-auth.md) | todo | |
