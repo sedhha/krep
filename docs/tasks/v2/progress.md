@@ -13,7 +13,7 @@ Drop 1 (V2-01 to V2-07) is the backend, testable with a stub login issuer and a 
 | V2-05 | [Platform and organisation routes, audit](V2-05-admin-routes.md) | done | cbee858 |
 | V2-06 | [Resource API scope, cross-tenant links, global approval](V2-06-resource-links.md) | done | 88aed63 |
 | V2-07 | [Organisation lifecycle and purge](V2-07-lifecycle.md) | done | 62fba06 |
-| V2-08 | [Next.js app, Better Auth, BFF proxy](V2-08-next-app-better-auth.md) | in-review | |
+| V2-08 | [Next.js app, Better Auth, BFF proxy](V2-08-next-app-better-auth.md) | done | 8e70d3b |
 | V2-09 | [Platform console](V2-09-platform-console.md) | todo | |
 | V2-10 | [Organisation console: products, auth, members, policies](V2-10-org-console.md) | todo | |
 | V2-11 | [Agents and links UI](V2-11-agents-links-ui.md) | todo | |
