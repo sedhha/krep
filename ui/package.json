@@ -1,0 +1,35 @@
+{
+  "name": "krep-ui",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "auth:migrate": "pnpm dlx auth@1.7.15 migrate --config src/lib/auth.ts -y"
+  },
+  "dependencies": {
+    "better-auth": "1.7.15",
+    "jose": "6.2.15",
+    "next": "16.4.4",
+    "pg": "8.23.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@types/node": "26.6.6",
+    "@types/pg": "8.23.1",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.4.4",
+    "typescript": "6.0.3",
+    "vitest": "5.1.0"
+  }
+}
