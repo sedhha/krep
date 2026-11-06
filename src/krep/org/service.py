@@ -61,6 +61,12 @@ async def find_user(conn: AsyncConnection, identifier: str) -> str | None:
     return None if row is None else row[0]
 
 
+async def lock_user(conn: AsyncConnection, user_id: str) -> None:
+    await conn.execute(
+        "SELECT pg_advisory_xact_lock(hashtextextended(%s, 0))", (user_id,)
+    )
+
+
 async def user_exists(conn: AsyncConnection, user_id: str) -> bool:
     cur = await conn.execute("SELECT 1 FROM auth_users WHERE id = %s", (user_id,))
     return await cur.fetchone() is not None
@@ -92,6 +98,10 @@ async def create_organization(
     auth: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     admin_id = await find_user(conn, admin_user)
+    if admin_id is not None:
+        await lock_user(conn, admin_id)
+        if not await user_exists(conn, admin_id):
+            admin_id = None
     if admin_id is None:
         raise ApiError(
             422, "admin_user_not_found", "admin_user must be an existing username"
@@ -329,6 +339,9 @@ async def add_member(
     groups: list[str],
     actor: str,
 ) -> dict[str, Any]:
+    await lock_user(conn, user_id)
+    if not await user_exists(conn, user_id):
+        raise not_found("user")
     try:
         await conn.execute(
             "INSERT INTO memberships (user_id, tenant_id, groups, created_by) VALUES (%s, %s, %s, %s)",
@@ -346,6 +359,9 @@ async def upsert_member(
     groups: list[str],
     actor: str,
 ) -> dict[str, Any]:
+    await lock_user(conn, user_id)
+    if not await user_exists(conn, user_id):
+        raise not_found("user")
     await conn.execute(
         "INSERT INTO memberships (user_id, tenant_id, groups, created_by) VALUES (%s, %s, %s, %s) "
         "ON CONFLICT (user_id, tenant_id) DO UPDATE SET groups = EXCLUDED.groups",

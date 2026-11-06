@@ -2,11 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useState, useSyncExternalStore } from "react";
 
 import { authClient } from "@/lib/auth-client";
 
+const subscribe = () => () => {};
+
 export function SignupForm() {
+  const ready = useSyncExternalStore(subscribe, () => true, () => false);
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -14,6 +17,8 @@ export function SignupForm() {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const passwordInput = event.currentTarget.elements.namedItem("password");
+    if (passwordInput instanceof HTMLInputElement) passwordInput.value = "";
     const username = String(form.get("username"));
     setPending(true);
     setError(null);
@@ -33,21 +38,21 @@ export function SignupForm() {
   }
 
   return (
-    <form onSubmit={onSubmit}>
+    <form method="post" onSubmit={onSubmit}>
       <label>
         Username
-        <input name="username" autoComplete="username" minLength={3} required />
+        <input name="username" disabled={!ready || pending} autoComplete="username" minLength={3} required />
       </label>
       <label>
         Email
-        <input name="email" type="email" autoComplete="email" required />
+        <input name="email" type="email" disabled={!ready || pending} autoComplete="email" required />
       </label>
       <label>
         Password
-        <input name="password" type="password" autoComplete="new-password" minLength={8} required />
+        <input name="password" type="password" disabled={!ready || pending} autoComplete="new-password" minLength={8} required />
       </label>
       {error && <p role="alert">{error}</p>}
-      <button type="submit" disabled={pending}>
+      <button type="submit" disabled={!ready || pending}>
         Create account
       </button>
       <p>

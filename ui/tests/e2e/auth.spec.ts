@@ -9,10 +9,9 @@ import {
   test,
 } from "@playwright/test";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
-import pg from "pg";
 
 import { banUser } from "../../src/lib/ban";
-import { API_URL, PLATFORM_KEY, roleUrl, UI_URL } from "./constants";
+import { API_URL, PLATFORM_KEY, UI_URL } from "./constants";
 
 const PASSWORD = "correct-horse-battery";
 
@@ -142,11 +141,11 @@ test("ban pairing makes the next request 401 despite an unexpired JWT", async ({
   const victimName = uniqueName("victim");
 
   const adminApi = await newUiApi(playwright);
-  await signUpApi(adminApi, adminName);
-  const authDb = new pg.Client({ connectionString: roleUrl("krep_auth") });
-  await authDb.connect();
-  await authDb.query(`UPDATE auth."user" SET role = 'admin' WHERE username = $1`, [adminName]);
-  await authDb.end();
+  const adminId = await signUpApi(adminApi, adminName);
+  const granted = await adminApi.put(`${API_URL}/v1/admin/platform-admins/${adminId}`, {
+    headers: { "x-platform-key": PLATFORM_KEY },
+  });
+  expect(granted.ok()).toBeTruthy();
   await signInApi(adminApi, adminName);
 
   const victimApi = await newUiApi(playwright);
@@ -187,4 +186,24 @@ test("ban pairing makes the next request 401 despite an unexpired JWT", async ({
 
   await adminApi.dispose();
   await victimApi.dispose();
+});
+
+test("password fields clear after failed login and sign-up submissions", async ({ page, playwright }) => {
+  const name = uniqueName("passwordclear");
+  const api = await newUiApi(playwright);
+  await signUpApi(api, name);
+  await page.setExtraHTTPHeaders({ "x-forwarded-for": `10.50.${randomBytes(1)[0]}.${randomBytes(1)[0]}` });
+  await page.goto("/login");
+  await page.getByLabel("Username").fill(name);
+  await page.getByLabel("Password").fill("wrong-password-value");
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "Invalid username or password" })).toBeVisible();
+  await expect(page.getByLabel("Password")).toHaveValue("");
+  await page.goto("/signup");
+  await page.getByLabel("Username").fill(name);
+  await page.getByLabel("Email").fill(`${name}@example.test`);
+  await page.getByLabel("Password").fill(PASSWORD);
+  await page.getByRole("button", { name: "Create account", exact: true }).click();
+  await expect(page.getByLabel("Password")).toHaveValue("");
+  await api.dispose();
 });

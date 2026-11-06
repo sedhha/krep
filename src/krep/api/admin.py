@@ -199,6 +199,7 @@ async def detach_member(
 async def grant_platform_admin(
     user_id: str, actor: Actor, conn: Conn
 ) -> dict[str, Any]:
+    await service.lock_user(conn, user_id)
     if not await service.user_exists(conn, user_id):
         raise service.not_found("user")
     await conn.execute(
@@ -280,3 +281,97 @@ async def set_registry_scope(
             is_platform_admin=True,
         )
         return await set_scope(conn, caller, resource_id, body.scope, body.product)
+
+
+@router.get("/organizations/{org_id}/members")
+async def organization_members(org_id: UUID, _: Actor, conn: Conn) -> dict[str, Any]:
+    await service.get_organization(conn, org_id)
+    await service.scope(conn, org_id)
+    return {"items": await service.list_members(conn, org_id)}
+
+
+@router.get("/organizations/{org_id}/auth")
+async def organization_auth(org_id: UUID, _: Actor, conn: Conn) -> dict[str, Any]:
+    await service.get_organization(conn, org_id)
+    await service.scope(conn, org_id)
+    return await service.get_auth(conn, org_id, None)
+
+
+@router.get("/organizations/{org_id}/purge-blockers")
+async def organization_blockers(
+    org_id: UUID, _: Actor, request: Request, conn: Conn
+) -> dict[str, Any]:
+    organization = await service.get_organization(conn, org_id)
+    async with tenant_transaction(request.app.state.pool, org_id) as tenant:
+        await tenant.execute("SELECT set_config('app.platform_admin', 'on', true)")
+        cur = await tenant.execute(
+            "SELECT r.slug, f.organization, f.kind, f.referrers "
+            "FROM registry r CROSS JOIN LATERAL foreign_referrers(r.id) f "
+            "WHERE r.tenant_id = %s AND r.scope = 'global' "
+            "ORDER BY r.slug, f.organization, f.kind",
+            (org_id,),
+        )
+        items = [
+            dict(
+                zip(("resource", "organization", "kind", "referrers"), row, strict=True)
+            )
+            for row in await cur.fetchall()
+        ]
+    return {"legal_hold": organization["legal_hold"], "items": items}
+
+
+@router.get("/users/{user_id}")
+async def user_registry_status(user_id: str, _: Actor, conn: Conn) -> dict[str, Any]:
+    if not await service.user_exists(conn, user_id):
+        raise service.not_found("user")
+    cur = await conn.execute(
+        "SELECT 1 FROM platform_admins WHERE user_id = %s", (user_id,)
+    )
+    is_admin = await cur.fetchone() is not None
+    cur = await conn.execute(
+        "SELECT 1 FROM disabled_users WHERE user_id = %s", (user_id,)
+    )
+    disabled = await cur.fetchone() is not None
+    memberships: list[str] = []
+    for org in await service.list_organizations(conn):
+        await service.scope(conn, org["id"])
+        cur = await conn.execute(
+            "SELECT 1 FROM memberships WHERE tenant_id = %s AND user_id = %s",
+            (org["id"], user_id),
+        )
+        if await cur.fetchone() is not None:
+            memberships.append(str(org["id"]))
+    return {
+        "user_id": user_id,
+        "is_platform_admin": is_admin,
+        "memberships": memberships,
+        "is_orphan": not is_admin and not memberships,
+        "disabled": disabled,
+    }
+
+
+class IdentityAuditIn(BaseModel):
+    operation_id: UUID | None = None
+    action: Literal[
+        "create",
+        "password_reset",
+        "delete",
+        "create_requested",
+        "password_reset_requested",
+        "delete_requested",
+    ]
+
+
+@router.post("/users/{user_id}/identity-audit", status_code=204)
+async def identity_audit(
+    user_id: str, body: IdentityAuditIn, actor: Actor, conn: Conn
+) -> Response:
+    await audit.record(
+        conn,
+        actor.user_id,
+        f"user.{body.action}",
+        None,
+        user_id,
+        None if body.operation_id is None else {"operation_id": str(body.operation_id)},
+    )
+    return Response(status_code=204)

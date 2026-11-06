@@ -2,11 +2,14 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useState, useSyncExternalStore } from "react";
 
 import { authClient } from "@/lib/auth-client";
 
+const subscribe = () => () => {};
+
 export default function LoginPage() {
+  const ready = useSyncExternalStore(subscribe, () => true, () => false);
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -14,6 +17,8 @@ export default function LoginPage() {
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
+    const passwordInput = event.currentTarget.elements.namedItem("password");
+    if (passwordInput instanceof HTMLInputElement) passwordInput.value = "";
     setPending(true);
     setError(null);
     const { error } = await authClient.signIn.username({
@@ -32,17 +37,17 @@ export default function LoginPage() {
   return (
     <main>
       <h1>Sign in</h1>
-      <form onSubmit={onSubmit}>
+      <form method="post" onSubmit={onSubmit}>
         <label>
           Username
-          <input name="username" autoComplete="username" required />
+          <input name="username" disabled={!ready || pending} autoComplete="username" required />
         </label>
         <label>
           Password
-          <input name="password" type="password" autoComplete="current-password" required />
+          <input name="password" type="password" disabled={!ready || pending} autoComplete="current-password" required />
         </label>
         {error && <p role="alert">{error}</p>}
-        <button type="submit" disabled={pending}>
+        <button type="submit" disabled={!ready || pending}>
           Sign in
         </button>
       </form>

@@ -14,21 +14,30 @@
     "auth:migrate": "pnpm dlx auth@1.7.15 migrate --config src/lib/auth.ts -y"
   },
   "dependencies": {
+    "@tanstack/react-query": "^5.106.0",
     "better-auth": "1.7.15",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "jose": "6.2.15",
     "next": "16.4.4",
     "pg": "8.23.1",
+    "radix-ui": "^1.8.1",
     "react": "19.3.1",
-    "react-dom": "19.3.1"
+    "react-dom": "19.3.1",
+    "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1",
+    "@tailwindcss/postcss": "^4.3.4",
+    "@testing-library/react": "^16.3.3",
     "@types/node": "26.6.6",
     "@types/pg": "8.23.1",
     "@types/react": "19.3.0",
     "@types/react-dom": "19.3.0",
     "eslint": "9.39.5",
     "eslint-config-next": "16.4.4",
+    "jsdom": "^26.1.0",
+    "tailwindcss": "^4.3.4",
     "typescript": "6.0.3",
     "vitest": "5.1.0"
   }

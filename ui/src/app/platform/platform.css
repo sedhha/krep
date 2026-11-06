@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: #f6f8fc;
+  --color-foreground: #18243b;
+  --color-primary: #264f97;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #e9eff8;
+  --color-secondary-foreground: #18243b;
+  --color-muted: #edf1f7;
+  --color-muted-foreground: #526279;
+  --color-accent: #e9eff8;
+  --color-accent-foreground: #18243b;
+  --color-destructive: #a32935;
+  --color-border: #d5deeb;
+  --color-input: #c1cddd;
+  --color-ring: #4976ba;
+  --color-card: #ffffff;
+  --color-card-foreground: #18243b;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #18243b;
+  --radius-sm: 0.3rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+}
+
+.platform { min-height: 100vh; background: var(--color-background); color: var(--color-foreground); font-family: Arial, sans-serif; }
+.platform main { max-width: 1100px; margin: auto; padding: 2rem 1.25rem; }
+.platform nav { display: flex; flex-wrap: wrap; gap: 1.5rem; padding: 1.25rem; background: #182c4c; color: white; }
+.platform h1 { font-size: 1.8rem; font-weight: 650; margin-bottom: 1.25rem; }
+.platform h2 { font-size: 1.2rem; font-weight: 600; margin-bottom: 1rem; }
+.platform section { border: 1px solid var(--color-border); border-radius: .75rem; background: white; padding: 1.5rem; margin-bottom: 1.25rem; }
+.platform form { display: grid; gap: 1rem; }
+.platform label { display: grid; gap: .4rem; font-size: .9rem; font-weight: 500; }
+.platform fieldset { display: grid; gap: 1rem; }
+.platform legend { font-weight: 600; padding-bottom: 1rem; }
+.platform select { border: 1px solid var(--color-input); border-radius: .5rem; padding: .5rem; background: white; }
+.platform a { text-decoration: underline; text-underline-offset: 3px; }
+.platform .actions { display: flex; gap: .75rem; flex-wrap: wrap; align-items: center; margin: 1rem 0; }
+.platform [role=alert] { color: var(--color-destructive); }
+.platform pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: .85rem; }
+.platform small { color: var(--color-muted-foreground); }

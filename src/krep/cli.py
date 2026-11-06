@@ -11,7 +11,7 @@ from cryptography.fernet import Fernet
 from psycopg import AsyncConnection
 
 from krep.jobs import purge_due
-from krep.org.service import init_capabilities
+from krep.org.service import init_capabilities, lock_user, user_exists
 from krep.policy.ast import PolicyError, PolicyInvalid, PolicyParseError, PolicyTooLarge
 from krep.policy.compile import COMPILER_VERSION, compile_ast
 from krep.policy.parser import parse
@@ -121,6 +121,9 @@ async def _grant_platform_admin(conn: AsyncConnection, username: str) -> str | N
         )
         row = await cur.fetchone()
         if row is None:
+            return None
+        await lock_user(conn, row[0])
+        if not await user_exists(conn, row[0]):
             return None
         await conn.execute(
             "INSERT INTO platform_admins (user_id, granted_by) VALUES (%s, %s) "
