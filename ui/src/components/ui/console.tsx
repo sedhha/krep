@@ -43,8 +43,7 @@ export function ConfirmAction({ label, description, onConfirm, disabled = false 
 }
 
 export function AuditPanel({ tenant }: { tenant?: string }) {
-  const [before, setBefore] = useState<number>();
-  const audit = useQuery({ queryKey: ["audit", before], queryFn: () => adminApi.audit(before) });
+  const audit = useQuery({ queryKey: ["audit"], queryFn: () => adminApi.audit() });
   const rows = audit.data?.items ?? [];
   return <section>
     <h2>Audit log</h2><ErrorMessage error={audit.error} />
@@ -55,8 +54,6 @@ export function AuditPanel({ tenant }: { tenant?: string }) {
         </TableRow>)}</TableBody>
       </Table>
       {!rows.length && <p>No audit entries.</p>}
-      <div className="actions"><Button variant="outline" disabled={before === undefined} onClick={() => setBefore(undefined)}>Latest</Button>
-        <Button variant="outline" disabled={rows.length < 50} onClick={() => setBefore(rows.at(-1)?.id)}>Older</Button></div>
     </>}
   </section>;
 }

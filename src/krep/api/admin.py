@@ -252,7 +252,7 @@ async def enable_user(user_id: str, actor: Actor, conn: Conn) -> dict[str, Any]:
 async def audit_log(
     _: Actor,
     conn: Conn,
-    limit: Annotated[int, Query(ge=1, le=500)] = 50,
+    limit: Annotated[int, Query(ge=1, le=500)] = 100,
     before: Annotated[int | None, Query(ge=1)] = None,
 ) -> dict[str, Any]:
     cur = await conn.execute(

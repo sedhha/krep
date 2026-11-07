@@ -204,3 +204,26 @@ async def test_v2ac6_identity_deletion_lock_serializes_new_grants(
             await identity.commit()
         response = await task
         assert response.status_code == (422 if operation == "create" else 404)
+
+
+async def test_v2ac6_audit_defaults_to_latest_100_and_api_can_fetch_more(
+    client: httpx.AsyncClient,
+    platform_headers: dict[str, str],
+    platform_pool: Pool,
+) -> None:
+    async with platform_pool.connection() as conn, conn.transaction():
+        cur = await conn.execute(
+            "INSERT INTO admin_audit_log (actor, action, target) "
+            "SELECT 'audit-limit-test', 'test.audit', n::text "
+            "FROM generate_series(1, 130) AS n RETURNING id"
+        )
+        ids = sorted((row[0] for row in await cur.fetchall()), reverse=True)
+    default = await client.get("/v1/admin/audit", headers=platform_headers)
+    assert default.status_code == 200
+    assert [row["id"] for row in default.json()["items"]] == ids[:100]
+    expanded = await client.get("/v1/admin/audit?limit=130", headers=platform_headers)
+    assert [row["id"] for row in expanded.json()["items"]] == ids
+    older = await client.get(
+        f"/v1/admin/audit?before={ids[99]}", headers=platform_headers
+    )
+    assert [row["id"] for row in older.json()["items"]][:30] == ids[100:]

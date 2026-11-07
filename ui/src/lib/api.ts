@@ -151,7 +151,7 @@ export const adminApi = {
   revoke: (user: string) => api<void>(`/admin/platform-admins/${segment(user)}`, { method: "DELETE" }),
   disable: (user: string) => api(`/admin/users/${segment(user)}/disable`, { method: "POST", json: {} }),
   enable: (user: string) => api(`/admin/users/${segment(user)}/enable`, { method: "POST" }),
-  audit: (before?: number) => api<{ items: AuditRow[] }>(`/admin/audit?limit=50${before ? `&before=${before}` : ""}`),
+  audit: (before?: number, limit = 100) => api<{ items: AuditRow[] }>(`/admin/audit?limit=${limit}${before ? `&before=${before}` : ""}`),
 };
 
 export interface IdentityUser {
